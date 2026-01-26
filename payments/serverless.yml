@@ -8,9 +8,9 @@ provider:
   timeout: 30
   environment:
     DYNAMODB_TABLE_PREFIX: webdpro
-    RAZORPAY_KEY_ID: ${env:RAZORPAY_KEY_ID}
-    RAZORPAY_KEY_SECRET: ${env:RAZORPAY_KEY_SECRET}
-    WEBHOOK_SECRET: ${env:RAZORPAY_WEBHOOK_SECRET}
+    RAZORPAY_KEY_ID: ${env:RAZORPAY_KEY_ID, 'test_key'}
+    RAZORPAY_KEY_SECRET: ${env:RAZORPAY_KEY_SECRET, 'test_secret'}
+    WEBHOOK_SECRET: ${env:RAZORPAY_WEBHOOK_SECRET, 'test_secret'}
   
   iam:
     role:

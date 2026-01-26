@@ -49,8 +49,11 @@ const getTenantId = (event: APIGatewayEvent): string | null => {
  * Generate a new AI-powered website
  */
 export const generateStore = async (event: APIGatewayEvent) => {
+   let tenantId: string | null = null;
+   let storeId: string | null = null;
+
    try {
-      const tenantId = getTenantId(event);
+      tenantId = getTenantId(event);
       if (!tenantId) {
          return response(401, { error: 'Unauthorized - tenant not found' });
       }
@@ -62,7 +65,7 @@ export const generateStore = async (event: APIGatewayEvent) => {
          return response(400, { error: 'Prompt is required' });
       }
 
-      const storeId = uuidv4();
+      storeId = uuidv4();
       const createdAt = new Date().toISOString();
 
       // Create store record (DRAFT status)
@@ -88,7 +91,7 @@ export const generateStore = async (event: APIGatewayEvent) => {
 
       // Generate website using AI
       console.log(`[Store ${storeId}] Starting AI generation...`);
-      
+
       const aiResponse = await aiClient.generateWebsite({
          input: {
             businessName: extractBusinessName(prompt),
@@ -167,12 +170,12 @@ export const generateStore = async (event: APIGatewayEvent) => {
       });
    } catch (error: any) {
       console.error('Error generating store:', error);
-      
+
       // Update store status to ERROR
       try {
          await docClient.send(new UpdateCommand({
             TableName: STORES_TABLE,
-            Key: { tenant_id: tenantId, store_id: storeId },
+            Key: { tenant_id: tenantId || 'unknown', store_id: storeId || 'unknown' },
             UpdateExpression: 'SET #status = :status, updated_at = :time',
             ExpressionAttributeNames: { '#status': 'status' },
             ExpressionAttributeValues: {

@@ -47,6 +47,12 @@ provider:
             - cognito-idp:RespondToAuthChallenge
           Resource: "*"
 
+package:
+  individually: true
+  patterns:
+    - '!node_modules/**'
+    - '!test/**'
+
 functions:
   # Auth Functions
   requestOTP:
@@ -156,3 +162,5 @@ resources:
       Value: !Ref CognitoUserPoolWebDProUserPool
     UserPoolClientId:
       Value: !Ref CognitoUserPoolClient
+    EventsTopicArn:
+      Value: !Ref WebDProEventsTopic

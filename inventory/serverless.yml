@@ -9,7 +9,7 @@ provider:
   environment:
     DYNAMODB_TABLE_PREFIX: webdpro
     AWS_NODEJS_CONNECTION_REUSE_ENABLED: "1"
-    EVENTS_TOPIC_ARN: ${env:EVENTS_TOPIC_ARN}
+    EVENTS_TOPIC_ARN: ${env:EVENTS_TOPIC_ARN, 'arn:aws:sns:eu-north-1:941172143855:webdpro-events-dev'}
   iam:
     role:
       statements:
@@ -33,6 +33,13 @@ provider:
           Action:
             - sns:Publish
           Resource: "*"
+
+
+package:
+  individually: true
+  patterns:
+    - '!node_modules/**'
+    - '!test/**'
 
 functions:
   # Product CRUD
@@ -96,7 +103,7 @@ functions:
     handler: src/handlers/events.handleEvents
     events:
       - sns:
-          arn: ${env:EVENTS_TOPIC_ARN}
+          arn: ${env:EVENTS_TOPIC_ARN, 'arn:aws:sns:eu-north-1:941172143855:webdpro-events-dev'}
           filterPolicy:
             eventType:
               - ORDER_PLACED

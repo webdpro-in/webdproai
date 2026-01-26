@@ -14,8 +14,8 @@ provider:
     # Cross-Region Configuration
     AWS_S3_REGION: ${env:AWS_S3_REGION, 'eu-north-1'}
     AWS_S3_BUCKET: ${env:AWS_S3_BUCKET, 'webdpro-ai-storage'}
-    AWS_S3_BUCKET_WEBSITES: ${env:AWS_S3_BUCKET_WEBSITES, 'webdpro-websites'}
-    AWS_S3_BUCKET_ASSETS: ${env:AWS_S3_BUCKET_ASSETS, 'webdpro-assets'}
+    AWS_S3_BUCKET_WEBSITES: ${env:AWS_S3_BUCKET_WEBSITES, 'webdpro-websites-ai-gen'}
+    AWS_S3_BUCKET_ASSETS: ${env:AWS_S3_BUCKET_ASSETS, 'webdpro-assets-ai-gen'}
     
     AWS_BEDROCK_REGION: ${env:AWS_BEDROCK_REGION, 'us-east-1'}
     AWS_BEDROCK_MODEL_PRIMARY: ${env:AWS_BEDROCK_MODEL_PRIMARY, 'anthropic.claude-3-5-sonnet-20241022-v2:0'}
@@ -142,23 +142,18 @@ resources:
             - Effect: Allow
               Principal: '*'
               Action: s3:GetObject
-              Resource: !Sub "${AIStorageBucket}/*"
+              Resource: !Sub "arn:aws:s3:::${AIStorageBucket}/*"
 
-    WebsitesBucketPolicy:
+    AssetsBucketPolicy:
       Type: AWS::S3::BucketPolicy
       Properties:
-        Bucket: !Ref WebsitesBucket
+        Bucket: !Ref AssetsBucket
         PolicyDocument:
           Statement:
             - Effect: Allow
               Principal: '*'
               Action: s3:GetObject
-              Resource: !Sub "${WebsitesBucket}/*"
-
-            - Effect: Allow
-              Principal: '*'
-              Action: s3:GetObject
-              Resource: !Sub "${AssetsBucket}/*"
+              Resource: !Sub "arn:aws:s3:::${AssetsBucket}/*"
 
     # CloudFront Distribution for Websites
     WebsitesCDN:
@@ -203,11 +198,28 @@ resources:
               Principal:
                 CanonicalUser: !GetAtt OriginAccessIdentity.S3CanonicalUserId
               Action: s3:GetObject
-              Resource: !Sub "${WebsitesBucket}/*"
+              Resource: !Sub "arn:aws:s3:::${WebsitesBucket}/*"
+
+  Outputs:
+    CloudFrontDomain:
+      Value: !GetAtt WebsitesCDN.DomainName
+      Description: "The CloudFront Domain for Generated Websites"
+    AssetsBucketName:
+      Value: !Ref AssetsBucket
+      Description: "Bucket for static assets"
 
 plugins:
+  - serverless-plugin-typescript
   - serverless-offline
 
 custom:
+  serverless-plugin-typescript:
+    tsConfigFileLocation: './tsconfig.json'
   serverless-offline:
     httpPort: 3002
+
+package:
+  individually: true
+  patterns:
+    - '!node_modules/**'
+    - '!test/**'

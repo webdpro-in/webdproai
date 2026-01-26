@@ -57,18 +57,10 @@ export class AIServiceClient {
          }
 
          // Fallback to direct import (for development)
-         const { orchestrateSiteGeneration } = await import('../../ai_services/src/orchestrator');
-         
-         const result = await orchestrateSiteGeneration(
-            request.input,
-            request.tenantId,
-            request.storeId
-         );
+         // Fallback disabled in production/deployment to avoid file path issues
+         throw new Error("AI Service URL not configured and local fallback disabled in this environment.");
 
-         return {
-            success: true,
-            data: result
-         };
+
 
       } catch (error) {
          console.error('AI service call failed:', error);

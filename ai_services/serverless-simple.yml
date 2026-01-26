@@ -1,0 +1,44 @@
+service: webdpro-ai-services
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: eu-north-1
+  memorySize: 256
+  timeout: 60
+  stage: dev
+  environment:
+    AWS_S3_REGION: eu-north-1
+    AWS_BEDROCK_REGION: us-east-1
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - bedrock:InvokeModel
+          Resource: "*"
+        - Effect: Allow
+          Action:
+            - s3:*
+          Resource: "*"
+
+functions:
+  generateWebsite:
+    handler: index.generateWebsite
+    events:
+      - http:
+          path: /ai/generate
+          method: post
+          cors: true
+
+resources:
+  Resources:
+    AIStorageBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: webdpro-ai-storage-dev
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: false
+          BlockPublicPolicy: false
+          IgnorePublicAcls: false
+          RestrictPublicBuckets: false

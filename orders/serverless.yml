@@ -1,0 +1,57 @@
+service: webdpro-orders
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: eu-north-1
+  memorySize: 256
+  timeout: 30
+  environment:
+    DYNAMODB_TABLE_PREFIX: webdpro
+    INVENTORY_SERVICE_URL: { "Fn::ImportValue": "WebdproInventoryServiceUrl" } 
+    # Note: Direct DynamoDB access is preferred for microservices in same account context for speed, 
+    # but strictly speaking should go via API. For this MVP, we will use direct DB access or Events.
+    # Actually, we will use Direct DynamoDB access for atomic checks or stick to asynchronous pattern?
+    # Requirement: "WebDPro does: Checks inventory (central system)"
+    # We will use direct DynamoDB access to the Inventory table for validation to save latency/cost in MVP.
+  
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+          Resource:
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE_PREFIX}-orders"
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE_PREFIX}-products" # Read access for stock check
+
+functions:
+  createOrder:
+    handler: src/index.createOrder
+    events:
+      - http:
+          path: /orders
+          method: post
+          cors: true
+
+  getOrder:
+    handler: src/index.getOrder
+    events:
+      - http:
+          path: /orders/{orderId}
+          method: get
+          cors: true
+
+  listOrders:
+    handler: src/index.listOrders
+    events:
+      - http:
+          path: /orders
+          method: get
+          cors: true
+
+plugins:
+  - serverless-plugin-typescript

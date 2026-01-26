@@ -1,0 +1,75 @@
+service: webdpro-payments
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: eu-north-1
+  memorySize: 256
+  timeout: 30
+  environment:
+    DYNAMODB_TABLE_PREFIX: webdpro
+    RAZORPAY_KEY_ID: ${env:RAZORPAY_KEY_ID}
+    RAZORPAY_KEY_SECRET: ${env:RAZORPAY_KEY_SECRET}
+    WEBHOOK_SECRET: ${env:RAZORPAY_WEBHOOK_SECRET}
+  
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+          Resource:
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE_PREFIX}-tenants" # Store linked account IDs
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE_PREFIX}-orders" # Update order status
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE_PREFIX}-payments" # Record payments
+
+functions:
+  # Merchant Onboarding (Linked Accounts)
+  createMerchantAccount:
+    handler: src/onboarding.createMerchantAccount
+    events:
+      - http:
+          path: /payments/onboard
+          method: post
+          cors: true
+
+  # Store Checkout (Split Payments)
+  createStoreOrder:
+    handler: src/checkout.createStoreOrder
+    events:
+      - http:
+          path: /payments/checkout
+          method: post
+          cors: true
+
+  # Platform Subscription (Merchant pays WebDPro)
+  createSubscription:
+    handler: src/subscription.createSubscription
+    events:
+      - http:
+          path: /payments/subscription
+          method: post
+          cors: true
+
+  # Webhooks
+  handleWebhook:
+    handler: src/webhooks.handleWebhook
+    events:
+      - http:
+          path: /payments/webhook
+          method: post
+          cors: true
+          
+  handleSubscriptionWebhook:
+    handler: src/subscription.handleSubscriptionWebhook
+    events:
+      - http:
+          path: /payments/webhook/subscription
+          method: post
+          cors: true
+
+plugins:
+  - serverless-plugin-typescript

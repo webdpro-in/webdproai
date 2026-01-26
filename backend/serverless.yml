@@ -1,0 +1,158 @@
+service: webdpro-backend
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: eu-north-1
+  memorySize: 128  # Free tier optimized
+  timeout: 15      # Free tier optimized
+  stage: ${opt:stage, 'dev'}
+  
+  environment:
+    AWS_NODEJS_CONNECTION_REUSE_ENABLED: "1"
+    AWS_S3_REGION: ${env:AWS_S3_REGION, 'eu-north-1'}
+    AWS_S3_BUCKET: ${env:AWS_S3_BUCKET, 'webdpro-ai-storage'}
+    AWS_BEDROCK_REGION: ${env:AWS_BEDROCK_REGION, 'us-east-1'}
+    AWS_CORE_REGION: ${env:AWS_CORE_REGION, 'eu-north-1'}
+    DYNAMODB_TABLE_PREFIX: webdpro
+    COGNITO_USER_POOL_ID: !Ref CognitoUserPoolWebDProUserPool
+    COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
+    RAZORPAY_KEY_ID: ${env:RAZORPAY_KEY_ID, 'test_key'}
+    RAZORPAY_KEY_SECRET: ${env:RAZORPAY_KEY_SECRET, 'test_secret'}
+    EVENTS_TOPIC_ARN: !Ref WebDProEventsTopic
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource:
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/webdpro-*"
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/webdpro-*/index/*"
+        - Effect: Allow
+          Action:
+            - sns:Publish
+          Resource: !Ref WebDProEventsTopic
+        - Effect: Allow
+          Action:
+            - cognito-idp:AdminGetUser
+            - cognito-idp:AdminCreateUser
+            - cognito-idp:InitiateAuth
+            - cognito-idp:RespondToAuthChallenge
+          Resource: "*"
+
+functions:
+  # Auth Functions
+  requestOTP:
+    handler: src/handlers/auth.requestOTP
+    events:
+      - http:
+          path: /auth/otp/request
+          method: post
+          cors: true
+
+  verifyOTP:
+    handler: src/handlers/auth.verifyOTP
+    events:
+      - http:
+          path: /auth/otp/verify
+          method: post
+          cors: true
+
+  # Store Functions
+  generateStore:
+    handler: src/handlers/stores.generateStore
+    timeout: 60
+    memorySize: 256
+    events:
+      - http:
+          path: /stores/generate
+          method: post
+          cors: true
+
+  getStores:
+    handler: src/handlers/stores.getStores
+    events:
+      - http:
+          path: /stores
+          method: get
+          cors: true
+
+plugins:
+  - serverless-plugin-typescript
+
+custom:
+  serverless-plugin-typescript:
+    tsConfigFileLocation: './tsconfig.json'
+  userPoolName: webdpro-users-${self:provider.stage}
+
+resources:
+  Resources:
+    # Cognito User Pool
+    CognitoUserPoolWebDProUserPool:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UserPoolName: ${self:custom.userPoolName}
+        MfaConfiguration: OFF
+        Schema:
+          - Name: phone_number
+            AttributeDataType: String
+            Mutable: true
+            Required: true
+
+    CognitoUserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        ClientName: webdpro-client
+        GenerateSecret: false
+        UserPoolId: !Ref CognitoUserPoolWebDProUserPool
+        ExplicitAuthFlows:
+          - ALLOW_CUSTOM_AUTH
+          - ALLOW_REFRESH_TOKEN_AUTH
+
+    # SNS Topic
+    WebDProEventsTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: webdpro-events-${self:provider.stage}
+
+    # DynamoDB Tables
+    UsersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: webdpro-users
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: phone
+            AttributeType: S
+        KeySchema:
+          - AttributeName: phone
+            KeyType: HASH
+
+    StoresTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: webdpro-stores
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: tenant_id
+            AttributeType: S
+          - AttributeName: store_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: tenant_id
+            KeyType: HASH
+          - AttributeName: store_id
+            KeyType: RANGE
+
+  Outputs:
+    UserPoolId:
+      Value: !Ref CognitoUserPoolWebDProUserPool
+    UserPoolClientId:
+      Value: !Ref CognitoUserPoolClient

@@ -1,0 +1,491 @@
+service: webdpro-backend
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: eu-north-1  # Business logic in Stockholm
+  memorySize: 128
+  timeout: 15
+  stage: ${opt:stage, 'dev'}
+  
+  environment:
+    AWS_NODEJS_CONNECTION_REUSE_ENABLED: "1"
+    
+    # Cross-Region Configuration
+    AWS_S3_REGION: ${env:AWS_S3_REGION, 'eu-north-1'}
+    AWS_S3_BUCKET: ${env:AWS_S3_BUCKET, 'webdpro-ai-storage'}
+    AWS_S3_BUCKET_WEBSITES: ${env:AWS_S3_BUCKET_WEBSITES, 'webdpro-websites'}
+    AWS_S3_BUCKET_ASSETS: ${env:AWS_S3_BUCKET_ASSETS, 'webdpro-assets'}
+    
+    AWS_BEDROCK_REGION: ${env:AWS_BEDROCK_REGION, 'us-east-1'}
+    AWS_CORE_REGION: ${env:AWS_CORE_REGION, 'eu-north-1'}
+    
+    DYNAMODB_TABLE_PREFIX: webdpro
+    DYNAMODB_REGION: ${env:DYNAMODB_REGION, 'eu-north-1'}
+    
+    # Linked to the CloudFormation Resource
+    COGNITO_USER_POOL_ID: !Ref CognitoUserPoolWebDProUserPool
+    COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
+    RAZORPAY_KEY_ID: ${env:RAZORPAY_KEY_ID}
+    RAZORPAY_KEY_SECRET: ${env:RAZORPAY_KEY_SECRET}
+    CLOUDFRONT_DISTRIBUTION_ID: ${env:CLOUDFRONT_DISTRIBUTION_ID}
+    AI_SERVICE_URL: ${env:AI_SERVICE_URL, ''}
+    EVENTS_TOPIC_ARN: !Ref WebDProEventsTopic
+    INVENTORY_SERVICE_URL: ${env:INVENTORY_SERVICE_URL, ''}
+    DELIVERY_SERVICE_URL: ${env:DELIVERY_SERVICE_URL, ''}
+
+  iam:
+    role:
+      statements:
+        # DynamoDB in eu-north-1
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource:
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/webdpro-*"
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/webdpro-*/index/*"
+        
+        # S3 in eu-north-1
+        - Effect: Allow
+          Action:
+            - s3:GetObject
+            - s3:PutObject
+            - s3:CopyObject
+            - s3:DeleteObject
+            - s3:ListBucket
+          Resource:
+            - "arn:aws:s3:::${env:AWS_S3_BUCKET, 'webdpro-ai-storage'}*"
+            - "arn:aws:s3:::${env:AWS_S3_BUCKET_WEBSITES, 'webdpro-websites'}*"
+            - "arn:aws:s3:::${env:AWS_S3_BUCKET_ASSETS, 'webdpro-assets'}*"
+        
+        # Bedrock in us-east-1 (cross-region access)
+        - Effect: Allow
+          Action:
+            - bedrock:InvokeModel
+            - bedrock:InvokeModelWithResponseStream
+          Resource: 
+            - "arn:aws:bedrock:us-east-1::foundation-model/*"
+        
+        # SNS in eu-north-1
+        - Effect: Allow
+          Action:
+            - sns:Publish
+          Resource: !Ref WebDProEventsTopic
+        
+        # Cognito in eu-north-1
+        - Effect: Allow
+          Action:
+            - cognito-idp:AdminGetUser
+            - cognito-idp:AdminCreateUser
+            - cognito-idp:InitiateAuth
+            - cognito-idp:RespondToAuthChallenge
+          Resource: "*"
+        
+        # CloudFront (global service)
+        - Effect: Allow
+          Action:
+            - cloudfront:CreateInvalidation
+          Resource: "*"
+
+functions:
+  # ============ AUTH ============
+  requestOTP:
+    handler: src/handlers/auth.requestOTP
+    events:
+      - http:
+          path: /auth/otp/request
+          method: post
+          cors: true
+
+  verifyOTP:
+    handler: src/handlers/auth.verifyOTP
+    events:
+      - http:
+          path: /auth/otp/verify
+          method: post
+          cors: true
+
+  refreshToken:
+    handler: src/handlers/auth.refreshToken
+    events:
+      - http:
+          path: /auth/refresh
+          method: post
+          cors: true
+
+  getProfile:
+    handler: src/handlers/auth.getProfile
+    events:
+      - http:
+          path: /auth/profile
+          method: get
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId: !Ref ApiGatewayAuthorizer
+
+  # ============ AUTH TRIGGERS ============
+  defineAuthChallenge:
+    handler: src/handlers/auth_triggers.defineAuthChallenge
+    events:
+      - cognitoUserPool:
+          pool: WebDProUserPool
+          trigger: DefineAuthChallenge
+          existing: true
+
+  createAuthChallenge:
+    handler: src/handlers/auth_triggers.createAuthChallenge
+    events:
+      - cognitoUserPool:
+          pool: WebDProUserPool
+          trigger: CreateAuthChallenge
+          existing: true
+
+  verifyAuthChallengeResponse:
+    handler: src/handlers/auth_triggers.verifyAuthChallengeResponse
+    events:
+      - cognitoUserPool:
+          pool: WebDProUserPool
+          trigger: VerifyAuthChallengeResponse
+          existing: true
+
+  # ============ STORES ============
+  generateStore:
+    handler: src/handlers/stores.generateStore
+    timeout: 120  # AI generation takes time
+    memorySize: 1024
+    events:
+      - http:
+          path: /stores/generate
+          method: post
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId: 
+              Ref: ApiGatewayAuthorizer
+
+  getStores:
+    handler: src/handlers/stores.getStores
+    events:
+      - http:
+          path: /stores
+          method: get
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId: 
+              Ref: ApiGatewayAuthorizer
+
+  getStore:
+    handler: src/handlers/stores.getStore
+    events:
+      - http:
+          path: /stores/{storeId}
+          method: get
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId: 
+              Ref: ApiGatewayAuthorizer
+
+  updateStore:
+    handler: src/handlers/stores.updateStore
+    events:
+      - http:
+          path: /stores/{storeId}
+          method: put
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId: 
+              Ref: ApiGatewayAuthorizer
+
+  publishStore:
+    handler: src/handlers/stores.publishStore
+    events:
+      - http:
+          path: /stores/{storeId}/publish
+          method: post
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId: 
+              Ref: ApiGatewayAuthorizer
+
+  # ============ ORDERS ============
+  createOrder:
+    handler: src/handlers/orders.createOrder
+    events:
+      - http:
+          path: /orders
+          method: post
+          cors: true
+
+  getOrder:
+    handler: src/handlers/orders.getOrder
+    events:
+      - http:
+          path: /orders/{orderId}
+          method: get
+          cors: true
+
+  getStoreOrders:
+    handler: src/handlers/orders.getStoreOrders
+    events:
+      - http:
+          path: /stores/{storeId}/orders
+          method: get
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId: 
+              Ref: ApiGatewayAuthorizer
+
+  updateOrderStatus:
+    handler: src/handlers/orders.updateOrderStatus
+    events:
+      - http:
+          path: /orders/{orderId}/status
+          method: put
+          cors: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId: 
+              Ref: ApiGatewayAuthorizer
+
+  # ============ PAYMENTS ============
+  createPayment:
+    handler: src/handlers/payments.createPayment
+    events:
+      - http:
+          path: /payments/create/{orderId}
+          method: post
+          cors: true
+
+  verifyPayment:
+    handler: src/handlers/payments.verifyPayment
+    events:
+      - http:
+          path: /payments/verify
+          method: post
+          cors: true
+
+  paymentWebhook:
+    handler: src/handlers/payments.handleWebhook
+    events:
+      - http:
+          path: /payments/webhook
+          method: post
+
+plugins:
+  - serverless-plugin-typescript
+      Properties:
+        AuthorizerResultTtlInSeconds: 300
+        IdentitySource: method.request.header.Authorization
+plugins:
+  - serverless-plugin-typescript
+
+custom:
+  serverless-plugin-typescript:
+    tsConfigFileLocation: './tsconfig.json'
+  userPoolName: webdpro-users-${self:provider.stage}
+
+resources:
+  Resources:
+    # Cognito Authorizer
+    ApiGatewayAuthorizer:
+      Type: AWS::ApiGateway::Authorizer
+      Properties:
+        AuthorizerResultTtlInSeconds: 300
+        IdentitySource: method.request.header.Authorization
+        Name: CognitoAuthorizer
+        RestApiId: !Ref ApiGatewayRestApi
+        Type: COGNITO_USER_POOLS
+        ProviderARNs:
+          - !GetAtt CognitoUserPoolWebDProUserPool.Arn
+
+    # Cognito User Pool (Automated)
+    CognitoUserPoolWebDProUserPool:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UserPoolName: ${self:custom.userPoolName}
+        MfaConfiguration: OFF
+        Schema:
+          - Name: phone_number
+            AttributeDataType: String
+            Mutable: true
+            Required: true
+        Policies:
+          PasswordPolicy:
+            MinimumLength: 8
+            RequireLowercase: false
+            RequireNumbers: false
+            RequireSymbols: false
+            RequireUppercase: false
+
+    CognitoUserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        ClientName: webdpro-client
+        GenerateSecret: false
+        UserPoolId: !Ref CognitoUserPoolWebDProUserPool
+        ExplicitAuthFlows:
+          - ALLOW_CUSTOM_AUTH
+          - ALLOW_REFRESH_TOKEN_AUTH
+
+    # SNS Topic for System Events
+    WebDProEventsTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: webdpro-events-${self:provider.stage}
+        DisplayName: WebDPro System Events
+
+    # DynamoDB Tables
+    TenantsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: webdpro-tenants
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: tenant_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: tenant_id
+            KeyType: HASH
+
+    UsersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: webdpro-users
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: phone
+            AttributeType: S
+        KeySchema:
+          - AttributeName: phone
+            KeyType: HASH
+
+    StoresTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: webdpro-stores
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: tenant_id
+            AttributeType: S
+          - AttributeName: store_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: tenant_id
+            KeyType: HASH
+          - AttributeName: store_id
+            KeyType: RANGE
+
+    ProductsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: webdpro-products
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: tenant_id
+            AttributeType: S
+          - AttributeName: product_id
+            AttributeType: S
+          - AttributeName: store_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: tenant_id
+            KeyType: HASH
+          - AttributeName: product_id
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: store-index
+            KeySchema:
+              - AttributeName: store_id
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+
+    OrdersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: webdpro-orders
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: tenant_id
+            AttributeType: S
+          - AttributeName: order_id
+            AttributeType: S
+          - AttributeName: store_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: tenant_id
+            KeyType: HASH
+          - AttributeName: order_id
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: store-index
+            KeySchema:
+              - AttributeName: store_id
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+
+    PaymentsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: webdpro-payments
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: tenant_id
+            AttributeType: S
+          - AttributeName: payment_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: tenant_id
+            KeyType: HASH
+          - AttributeName: payment_id
+            KeyType: RANGE
+
+    DeliveriesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: webdpro-deliveries
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: tenant_id
+            AttributeType: S
+          - AttributeName: delivery_id
+            AttributeType: S
+          - AttributeName: agent_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: tenant_id
+            KeyType: HASH
+          - AttributeName: delivery_id
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: agent-index
+            KeySchema:
+              - AttributeName: agent_id
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+
+  Outputs:
+    UserPoolId:
+      Value: !Ref CognitoUserPoolWebDProUserPool
+      Export:
+        Name: ${self:custom.userPoolName}-Id
+    
+    UserPoolClientId:
+      Value: !Ref CognitoUserPoolClient
+      Export:
+        Name: ${self:custom.userPoolName}-ClientId
+
+

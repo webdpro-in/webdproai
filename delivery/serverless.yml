@@ -1,0 +1,86 @@
+service: webdpro-delivery
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: eu-north-1
+  memorySize: 256
+  timeout: 30
+  environment:
+    DYNAMODB_TABLE_PREFIX: webdpro
+    AWS_NODEJS_CONNECTION_REUSE_ENABLED: "1"
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+          Resource:
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE_PREFIX}-*"
+        - Effect: Allow
+          Action:
+            - sns:Publish
+          Resource: "*"
+
+functions:
+  # Delivery Assignments
+  getAssignments:
+    handler: src/handlers/assignments.getAssignments
+    events:
+      - http:
+          path: /delivery/agent/{agentId}/assignments
+          method: get
+          cors: true
+
+  assignOrder:
+    handler: src/handlers/assignments.assignOrder
+    events:
+      - http:
+          path: /delivery/orders/{orderId}/assign
+          method: post
+          cors: true
+
+  # Status Updates
+  updateStatus:
+    handler: src/handlers/tracking.updateStatus
+    events:
+      - http:
+          path: /delivery/{deliveryId}/status
+          method: put
+          cors: true
+
+  getTracking:
+    handler: src/handlers/tracking.getTracking
+    events:
+      - http:
+          path: /delivery/{deliveryId}/tracking
+          method: get
+          cors: true
+
+  # COD Management
+  recordCashCollection:
+    handler: src/handlers/cash.recordCashCollection
+    events:
+      - http:
+          path: /delivery/{deliveryId}/cash
+          method: post
+          cors: true
+
+  getCashSummary:
+    handler: src/handlers/cash.getCashSummary
+    events:
+      - http:
+          path: /delivery/agent/{agentId}/cash-summary
+          method: get
+          cors: true
+
+plugins:
+  - serverless-plugin-typescript
+
+custom:
+  serverless-plugin-typescript:
+    tsConfigFileLocation: './tsconfig.json'

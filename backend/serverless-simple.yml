@@ -1,0 +1,42 @@
+﻿service: webdpro-backend
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: eu-north-1
+  memorySize: 128
+  timeout: 15
+  stage: dev
+  environment:
+    DYNAMODB_TABLE_PREFIX: webdpro
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:*
+          Resource: "*"
+        - Effect: Allow
+          Action:
+            - sns:*
+          Resource: "*"
+functions:
+  hello:
+    handler: index.hello
+    events:
+      - http:
+          path: /hello
+          method: get
+          cors: true
+resources:
+  Resources:
+    UsersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: webdpro-users
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: phone
+            AttributeType: S
+        KeySchema:
+          - AttributeName: phone
+            KeyType: HASH

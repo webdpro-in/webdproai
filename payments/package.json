@@ -1,0 +1,24 @@
+{
+   "name": "webdpro-payments",
+   "version": "1.0.0",
+   "description": "WebDPro Payments Service (Razorpay Embedded)",
+   "main": "dist/index.js",
+   "scripts": {
+      "build": "tsc",
+      "deploy": "serverless deploy"
+   },
+   "dependencies": {
+      "@aws-sdk/client-dynamodb": "^3.478.0",
+      "@aws-sdk/lib-dynamodb": "^3.478.0",
+      "razorpay": "^2.9.2",
+      "uuid": "^9.0.0"
+   },
+   "devDependencies": {
+      "@types/aws-lambda": "^8.10.130",
+      "@types/node": "^20.10.0",
+      "@types/uuid": "^9.0.0",
+      "serverless": "^3.38.0",
+      "serverless-plugin-typescript": "^2.1.5",
+      "typescript": "^5.3.0"
+   }
+}

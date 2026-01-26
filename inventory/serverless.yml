@@ -1,0 +1,110 @@
+service: webdpro-inventory
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: eu-north-1
+  memorySize: 256
+  timeout: 30
+  environment:
+    DYNAMODB_TABLE_PREFIX: webdpro
+    AWS_NODEJS_CONNECTION_REUSE_ENABLED: "1"
+    EVENTS_TOPIC_ARN: ${env:EVENTS_TOPIC_ARN}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource:
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE_PREFIX}-*"
+        - Effect: Allow
+          Action:
+            - bedrock:InvokeModel
+          Resource: "*"
+        
+        # SNS
+        - Effect: Allow
+          Action:
+            - sns:Publish
+          Resource: "*"
+
+functions:
+  # Product CRUD
+  getProducts:
+    handler: src/handlers/products.getProducts
+    events:
+      - http:
+          path: /inventory/{storeId}/products
+          method: get
+          cors: true
+
+  createProduct:
+    handler: src/handlers/products.createProduct
+    events:
+      - http:
+          path: /inventory/{storeId}/products
+          method: post
+          cors: true
+
+  updateProduct:
+    handler: src/handlers/products.updateProduct
+    events:
+      - http:
+          path: /inventory/{storeId}/products/{productId}
+          method: put
+          cors: true
+
+  deleteProduct:
+    handler: src/handlers/products.deleteProduct
+    events:
+      - http:
+          path: /inventory/{storeId}/products/{productId}
+          method: delete
+          cors: true
+
+  # Stock Management
+  updateStock:
+    handler: src/handlers/stock.updateStock
+    events:
+      - http:
+          path: /inventory/{storeId}/stock/{productId}
+          method: put
+          cors: true
+
+  getLowStock:
+    handler: src/handlers/stock.getLowStock
+    events:
+      - http:
+          path: /inventory/{storeId}/low-stock
+          method: get
+          cors: true
+
+  # AI Predictions (scheduled)
+  predictStock:
+    handler: src/handlers/predictions.predictStock
+    events:
+      - schedule: rate(5 minutes)
+
+  # Event Handlers
+  handleEvents:
+    handler: src/handlers/events.handleEvents
+    events:
+      - sns:
+          arn: ${env:EVENTS_TOPIC_ARN}
+          filterPolicy:
+            eventType:
+              - ORDER_PLACED
+              - ORDER_CANCELLED
+
+plugins:
+  - serverless-plugin-typescript
+
+custom:
+  serverless-plugin-typescript:
+    tsConfigFileLocation: './tsconfig.json'

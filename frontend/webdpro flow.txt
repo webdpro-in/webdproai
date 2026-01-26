@@ -1,0 +1,393 @@
+Ecommerce SaaS | AWS-Only | India-Scale | Multi-Tenant | Zero-Gap
+
+SYSTEM GOAL
+
+Build WebdPro, a full-stack, multi-tenant, prompt-to-ecommerce SaaS platform, entirely on AWS managed services, private, scalable for India-scale traffic, with only two third-party integrations:
+
+Razorpay – subscriptions, UPI, COD reconciliation, merchant payouts
+
+Domain Registrar API (Hostinger) – domain search & purchase
+
+The platform must generate, deploy, manage, and monetize sector-specific commerce websites in ≤ 10 minutes, with strict tenant isolation, role-based dashboards, and no manual DevOps.
+
+CORE ROLES (STRICT)
+
+Company Founder (Super Admin)
+
+Business Owner (Merchant)
+
+Delivery Agent
+
+Customer
+
+Each role has isolated UI, permissions, and data scope.
+
+END-TO-END USER STORY (REFERENCE FLOW)
+
+Raj logs in on mobile → OTP → dashboard → sees 3 live stores → clicks Generate New Store → enters prompt → edits → pays → site goes live → orders → delivery → payouts → admin monitoring.
+
+This exact flow must be supported without gaps.
+
+AUTHENTICATION & IDENTITY (AWS-ONLY)
+
+Amazon Cognito
+
+Email + Mobile OTP
+
+No passwords
+
+Cognito User Pools + Groups:
+
+SUPER_ADMIN
+
+BUSINESS_OWNER
+
+DELIVERY_AGENT
+
+CUSTOMER
+
+Tenant isolation enforced using:
+
+tenant_id (partition key)
+
+Cognito sub + group claims
+
+DATABASE & STORAGE (NO DRAWBACKS)
+Primary Data Store
+
+DynamoDB
+
+Tables:
+
+Tenants
+
+Stores
+
+Products
+
+Orders
+
+Inventory
+
+Payments
+
+DeliveryAssignments
+
+Partition Key: tenant_id
+
+Sort Keys per entity
+
+Relational (Optional, Advanced Queries)
+
+Amazon Aurora PostgreSQL
+
+Reporting
+
+Analytics
+
+Admin views
+
+Caching (AWS Equivalent of Redis)
+
+DynamoDB DAX
+
+Storage
+
+S3
+
+Generated frontend code
+
+Images
+
+Logs
+
+Versioned builds
+
+AI WEBSITE GENERATION PIPELINE (PIN-TO-PIN)
+INPUT
+
+Business Owner enters:
+
+Business name
+
+Category (auto-detected if missing)
+
+Location
+
+Products / services
+
+Price range
+
+Language
+
+Currency
+
+Example:
+
+“Curam – fresh vegetables, Mumbai, local delivery, cash + UPI, green theme”
+
+AI MODEL PRIORITY (COST + SAFETY)
+
+AWS Bedrock (Primary)
+
+Text layout
+
+SEO copy
+
+React + Tailwind code
+
+Product schema
+
+Image prompts
+
+Fallback Chain (Auto, Silent)
+
+LLaMA-3
+
+Claude-3
+
+Stable Diffusion (images only)
+
+If Bedrock returns 4xx/5xx → fallback automatically
+Every failure logged to CloudWatch
+
+OUTPUT (≤ 4–5 MINUTES)
+
+Frontend
+
+React / Next.js
+
+Tailwind CSS
+
+SEO optimized
+
+Razorpay checkout wired
+
+Backend
+
+FastAPI
+
+Inventory
+
+Orders
+
+Payments
+
+Delivery
+
+Validation
+
+Auto-fix syntax
+
+Auto-fix pricing gaps
+
+Auto-retry generation
+
+INLINE EDITING & REPUBLISH RULES (IMPORTANT)
+
+After generation:
+
+Merchant can edit text & images inline
+
+Image edits use Stable Diffusion
+
+Text edits via Bedrock
+
+Draft mode until payment
+
+Once Published + Payment Done:
+
+Site is locked
+
+Any change → Republish
+
+Republish requires payment again
+
+New version deployed safely (blue-green)
+
+DOMAIN + HOSTING FLOW (ZERO GAP)
+
+Merchant selects:
+
+store.webtpro.in (free)
+
+OR custom domain
+
+System checks availability via Hostinger API
+
+If available:
+
+Show price (domain + setup)
+
+Razorpay Checkout
+
+On success:
+
+Domain purchased
+
+DNS configured
+
+SSL via ACM
+
+CloudFront → S3 → API Gateway/Lambda
+
+Site Live in ≤ 8 minutes
+
+Confirmation via Email + Dashboard
+
+PAYMENT & PAYOUTS (RAZORPAY)
+Platform Payments
+
+Subscription unlocks unlimited stores
+
+First store always paid
+
+Customer Payments
+
+UPI
+
+Online
+
+COD
+
+Flow
+
+Customer pays → Razorpay
+
+Webhook → Backend
+
+Split:
+
+Platform cut (configurable)
+
+Delivery cut (if COD)
+
+Remaining → Merchant Razorpay account
+
+Auto daily settlement to merchant bank
+
+INVENTORY & AI AUTOMATION
+
+Inventory scanned every 5 minutes
+
+AI predicts:
+
+Low stock
+
+Reorder timing
+
+Merchant gets:
+
+Alert
+
+“Reorder?” button
+
+Supplier ping automated
+
+Inventory auto-adapts per store type:
+
+Grocery → stock-based
+
+Restaurant → menu-based
+
+Clinic → slot-based
+
+Online brand → SKU-based
+
+DELIVERY AGENT FLOW
+
+Agent invited by merchant
+
+Mobile OTP login
+
+Sees:
+
+Assigned orders only
+
+Actions:
+
+Picked
+
+Delivered
+
+Cash collected
+
+Cash marked → updates merchant dashboard automatically
+
+SUPER ADMIN (FOUNDER) DASHBOARD
+
+Email login only
+
+View:
+
+Total sites
+
+Revenue
+
+AI usage
+
+One-click:
+
+Suspend store
+
+Delete store
+
+Ban spam/abuse
+
+Full audit logs
+
+No access to merchant money
+
+CUSTOMER EXPERIENCE
+
+No account signup
+
+Mobile OTP only
+
+Browse → Add to cart → Pay
+
+Track order
+
+Full privacy
+
+Data isolated by mobile ID
+
+INFRASTRUCTURE (AWS-ONLY)
+
+API Gateway
+
+Lambda / ECS Fargate
+
+EventBridge
+
+SQS
+
+CloudWatch
+
+X-Ray
+
+CodeBuild
+
+CodePipeline
+
+GitHub Actions
+
+IaC (Terraform / CDK)
+
+NON-FUNCTIONAL GUARANTEES
+
+No data leaks
+
+No tenant crossover
+
+Auto-scaling
+
+Cost-optimized
+
+Cold-start optimized
+
+Production-ready by default
+
+FINAL RULE
+
+No gaps. No manual steps. No shared data. No unsafe AI.

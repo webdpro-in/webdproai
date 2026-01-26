@@ -1,0 +1,171 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// User authentication and roles
+model User {
+  id        String   @id @default(cuid())
+  email     String?  @unique
+  mobile    String?  @unique
+  role      String   @default("CUSTOMER") // SUPER_ADMIN, BUSINESS_OWNER, DELIVERY_AGENT, CUSTOMER
+  tenantId  String?
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+  orders Order[]
+  deliveryAssignments DeliveryAssignment[]
+}
+
+// Tenant (Business) model
+model Tenant {
+  id                 String   @id @default(cuid())
+  businessName       String
+  ownerId            String
+  subscriptionStatus String   @default("TRIAL")
+  subscriptionExpiry DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  users    User[]
+  stores   Store[]
+  products Product[]
+  orders   Order[]
+  payments Payment[]
+}
+
+// Store (Generated Website)
+model Store {
+  id             String      @id @default(cuid())
+  tenantId       String
+  name           String
+  prompt         String
+  status         String      @default("DRAFT") // GENERATING, DRAFT, PUBLISHED, FAILED, SUSPENDED
+  domain         String?     @unique
+  customDomain   String?     @unique
+  generatedCode  String?
+  theme          String?
+  sectorType     String?
+  publishedAt    DateTime?
+  version        Int         @default(1)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  products Product[]
+  orders   Order[]
+}
+
+// Product/Inventory
+model Product {
+  id          String   @id @default(cuid())
+  storeId     String
+  tenantId    String
+  name        String
+  description String?
+  price       Float
+  stock       Int      @default(0)
+  category    String?
+  imageUrl    String?
+  sku         String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  store  Store  @relation(fields: [storeId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+// Order
+model Order {
+  id              String         @id @default(cuid())
+  storeId         String
+  tenantId        String
+  customerId      String
+  items           String         // JSON string
+  total           Float
+  paymentMethod   String         // UPI, ONLINE, COD
+  paymentStatus   String         @default("PENDING")
+  deliveryStatus  String         @default("PENDING") // PENDING, ASSIGNED, PICKED_UP, DELIVERED, CANCELLED
+  deliveryAgentId String?
+  deliveryAddress String?
+  customerMobile  String?
+  customerName    String?
+  notes           String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  store              Store                @relation(fields: [storeId], references: [id])
+  tenant             Tenant               @relation(fields: [tenantId], references: [id])
+  customer           User                 @relation(fields: [customerId], references: [id])
+  deliveryAssignment DeliveryAssignment[]
+  payment            Payment?
+}
+
+// Delivery Assignment
+model DeliveryAssignment {
+  id              String   @id @default(cuid())
+  orderId         String
+  deliveryAgentId String
+  status          String   @default("ASSIGNED")
+  pickedUpAt      DateTime?
+  deliveredAt     DateTime?
+  cashCollected   Boolean  @default(false)
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  order         Order @relation(fields: [orderId], references: [id])
+  deliveryAgent User  @relation(fields: [deliveryAgentId], references: [id])
+}
+
+// Payment
+model Payment {
+  id              String        @id @default(cuid())
+  tenantId        String
+  orderId         String?       @unique
+  amount          Float
+  currency        String        @default("INR")
+  paymentType     String        // SUBSCRIPTION, STORE_PUBLISH, STORE_REPUBLISH, DOMAIN_PURCHASE, CUSTOMER_ORDER
+  paymentMethod   String?
+  status          String        @default("PENDING")
+  razorpayId      String?       @unique
+  platformCut     Float?
+  deliveryCut     Float?
+  merchantAmount  Float?
+  settledAt       DateTime?
+  metadata        String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  order  Order?  @relation(fields: [orderId], references: [id])
+}
+
+// OTP for authentication
+model OTP {
+  id        String   @id @default(cuid())
+  contact   String   // email or mobile
+  code      String
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+// Audit Log
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  tenantId  String?
+  action    String
+  resource  String?
+  metadata  String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+}

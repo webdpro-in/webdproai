@@ -1,0 +1,124 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+   :root {
+      /* Premium Light Mode (Clean, Professional) */
+      --background: 210 40% 98%;
+      --foreground: 222.2 84% 4.9%;
+      --card: 0 0% 100%;
+      --card-foreground: 222.2 84% 4.9%;
+      --popover: 0 0% 100%;
+      --popover-foreground: 222.2 84% 4.9%;
+
+      /* Electric Indigo as Primary */
+      --primary: 245 80% 60%;
+      --primary-foreground: 210 40% 98%;
+
+      --secondary: 210 40% 96.1%;
+      --secondary-foreground: 222.2 47.4% 11.2%;
+
+      --muted: 210 40% 90%;
+      --muted-foreground: 215.4 16.3% 40%;
+
+      --accent: 245 80% 95%;
+      /* Light Indigo Tint */
+      --accent-foreground: 245 80% 40%;
+
+      --destructive: 0 84.2% 60.2%;
+      --destructive-foreground: 210 40% 98%;
+
+      --border: 214.3 31.8% 90%;
+      --input: 214.3 31.8% 90%;
+      --ring: 245 80% 60%;
+
+      --radius: 0.75rem;
+      /* Larger border radius for modern feel */
+   }
+
+   /* Premium Dark Mode (Obsidian & Glows) - Default for "High Tech" feel */
+   .dark {
+      --background: 220 20% 10%;
+      /* Obsidian Black */
+      --foreground: 210 40% 98%;
+
+      --card: 220 20% 13%;
+      --card-foreground: 210 40% 98%;
+
+      --popover: 220 20% 13%;
+      --popover-foreground: 210 40% 98%;
+
+      --primary: 245 80% 65%;
+      /* Electric Indigo Lighter */
+      --primary-foreground: 210 40% 98%;
+
+      --secondary: 220 20% 18%;
+      --secondary-foreground: 210 40% 98%;
+
+      --muted: 220 20% 18%;
+      --muted-foreground: 215 20.2% 65.1%;
+
+      --accent: 245 80% 20%;
+      --accent-foreground: 210 40% 98%;
+
+      --destructive: 0 62.8% 30.6%;
+      --destructive-foreground: 210 40% 98%;
+
+      --border: 220 20% 20%;
+      --input: 220 20% 20%;
+      --ring: 245 80% 65%;
+   }
+}
+
+@layer base {
+   * {
+      @apply border-border;
+   }
+
+   body {
+      @apply bg-background text-foreground tracking-tight;
+      font-feature-settings: "rlig" 1, "calt" 1;
+   }
+}
+
+@layer utilities {
+   .text-gradient {
+      background: linear-gradient(135deg, hsl(var(--primary)) 0%, #a855f7 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+   }
+
+   .text-gradient-gold {
+      background: linear-gradient(135deg, #FFD700 0%, #FDB931 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+   }
+
+   .glass-card {
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+   }
+
+   .glass-card-hover {
+      transition: all 0.3s ease;
+   }
+
+   .glass-card-hover:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.15);
+      transform: translateY(-2px);
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+   }
+
+   /* Noise Texture usually requires an image, we can use a CSS radial gradient for a similar vibe or keep it clean */
+   .bg-grid-pattern {
+      background-size: 40px 40px;
+      background-image: linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+         linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+   }
+}

@@ -109,17 +109,17 @@ CLOUDFRONT_DISTRIBUTION_ID=E1XXXXXXXXXX
 # 🔐 AUTHENTICATION (Cognito)
 # ==============================================
 # User Pool ID for managing users
-COGNITO_USER_POOL_ID=eu-north-1_xxxxxxx
+COGNITO_USER_POOL_ID=eu-north-1_twGDpNFjq
 # App Client ID for the frontend to connect
-COGNITO_CLIENT_ID=xxxxxxxxxxxxxxxxxxxxxxxxx
+COGNITO_CLIENT_ID=nijch3h85e0rd6l4a3ppmo25
 
 # ==============================================
 # 💳 PAYMENTS (Razorpay)
 # ==============================================
 # Key ID (From Razorpay Dashboard)
-RAZORPAY_KEY_ID=rzp_live_xxxxxxxxxxx
+RAZORPAY_KEY_ID=rzp_live_A9O3Qt84a8YKnc
 # Key Secret (Keep this safe!)
-RAZORPAY_KEY_SECRET=xxxxxxxxxxxxxxxxxxxxx
+RAZORPAY_KEY_SECRET=opHbVCAkvq9V0ECSovYtiy7b
 ```
 
 ---

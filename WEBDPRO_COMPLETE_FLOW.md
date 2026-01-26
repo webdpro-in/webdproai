@@ -490,10 +490,10 @@ cat > .env << EOF
 AWS_REGION=eu-north-1
 AWS_ACCESS_KEY_ID=your-key
 AWS_SECRET_ACCESS_KEY=your-secret
-COGNITO_USER_POOL_ID=eu-north-1_xxxxxx
-COGNITO_CLIENT_ID=xxxxxxxxxxxxxxxxx
-RAZORPAY_KEY_ID=rzp_live_xxxxxxxxxx
-RAZORPAY_KEY_SECRET=xxxxxxxxxxxxxxxx
+COGNITO_USER_POOL_ID=eu-north-1_twGDpNFjq
+COGNITO_CLIENT_ID=nijch3h85e0rd6l4a3ppmo25
+RAZORPAY_KEY_ID=rzp_live_A9O3Qt84a8YKnc
+RAZORPAY_KEY_SECRET=opHbVCAkvq9V0ECSovYtiy7b
 S3_BUCKET=webdpro-ai
 EOF
 

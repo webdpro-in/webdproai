@@ -3,11 +3,11 @@
 import { PromptBox } from "@/components/ui/PromptBox"
 import { Button } from "@/components/ui/Button"
 import { useSearchParams, useRouter } from "next/navigation"
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { ArrowLeft, CheckCircle2, Loader2, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils" // Ensure utils exists or inline
 
-export default function CreateWebsitePage() {
+function CreateWebsiteContent() {
    const router = useRouter()
    const searchParams = useSearchParams()
    const initialPrompt = searchParams.get("prompt") || ""
@@ -132,5 +132,17 @@ export default function CreateWebsitePage() {
             )}
          </div>
       </div>
+   )
+}
+
+export default function CreateWebsitePage() {
+   return (
+      <Suspense fallback={
+         <div className="min-h-screen bg-black text-white p-8 flex items-center justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+         </div>
+      }>
+         <CreateWebsiteContent />
+      </Suspense>
    )
 }

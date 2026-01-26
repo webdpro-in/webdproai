@@ -211,12 +211,18 @@ resources:
 plugins:
   - serverless-plugin-typescript
   - serverless-offline
+  - serverless-dotenv-plugin
 
 custom:
   serverless-plugin-typescript:
     tsConfigFileLocation: './tsconfig.json'
   serverless-offline:
     httpPort: 3002
+  dotenv:
+    exclude:
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_REGION
 
 package:
   individually: true

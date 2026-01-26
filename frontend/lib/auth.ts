@@ -1,19 +1,10 @@
-import {
-   CognitoIdentityProviderClient,
-   InitiateAuthCommand,
-   RespondToAuthChallengeCommand,
-   SignUpCommand
-} from "@aws-sdk/client-cognito-identity-provider";
 
-const CLIENT_ID = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID || "";
-const REGION = process.env.NEXT_PUBLIC_AWS_REGION || "eu-north-1";
-
-const client = new CognitoIdentityProviderClient({ region: REGION });
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 export interface AuthResult {
    success: boolean;
    message?: string;
-   session?: string; // For OTP challenge
+   session?: string;
    tokens?: {
       accessToken: string;
       idToken: string;
@@ -21,93 +12,51 @@ export interface AuthResult {
    };
 }
 
-// 1. Initiate Login (Send OTP)
-export async function sendOtp(phoneNumber: string): Promise<AuthResult> {
+export async function sendOtp(phone: string): Promise<AuthResult> {
    try {
-      // Basic phone validation
-      const cleanPhone = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
-
-      const command = new InitiateAuthCommand({
-         AuthFlow: "CUSTOM_AUTH", // Or USER_SRP_AUTH if using password, but requirement is "Phone OTP"
-         ClientId: CLIENT_ID,
-         AuthParameters: {
-            USERNAME: cleanPhone,
-         },
+      const res = await fetch(`${API_URL}/auth/otp/request`, {
+         method: "POST",
+         headers: { "Content-Type": "application/json" },
+         body: JSON.stringify({ phone }),
       });
+      const data = await res.json();
 
-      const response = await client.send(command);
+      if (!res.ok) throw new Error(data.error || "Failed to send OTP");
 
       return {
          success: true,
-         session: response.Session,
-         message: "OTP sent successfully"
+         session: data.session,
+         message: data.message
       };
-
    } catch (error: any) {
-      if (error.name === 'UserNotFoundException') {
-         // Auto-signup logic could go here, or we tell user to register
-         return { success: false, message: "User not found. Please register first." };
-      }
-      console.error("Auth Error:", error);
-      return { success: false, message: error.message || "Failed to send OTP" };
-   }
-}
-
-// 2. Verify OTP
-export async function verifyOtp(phoneNumber: string, answer: string, session: string): Promise<AuthResult> {
-   try {
-      const cleanPhone = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
-
-      const command = new RespondToAuthChallengeCommand({
-         ChallengeName: "CUSTOM_CHALLENGE", // Checks if this matches the flow
-         ClientId: CLIENT_ID,
-         ChallengeResponses: {
-            USERNAME: cleanPhone,
-            ANSWER: answer,
-         },
-         Session: session,
-      });
-
-      const response = await client.send(command);
-
-      if (response.AuthenticationResult) {
-         return {
-            success: true,
-            tokens: {
-               accessToken: response.AuthenticationResult.AccessToken!,
-               idToken: response.AuthenticationResult.IdToken!,
-               refreshToken: response.AuthenticationResult.RefreshToken!,
-            }
-         };
-      }
-
-      return { success: false, message: "Invalid OTP" };
-
-   } catch (error: any) {
-      console.error("Verify Error:", error);
-      return { success: false, message: error.message || "Verification failed" };
-   }
-}
-
-// 3. Register (If needed)
-export async function registerUser(phoneNumber: string, name: string): Promise<AuthResult> {
-   try {
-      const cleanPhone = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
-
-      const command = new SignUpCommand({
-         ClientId: CLIENT_ID,
-         Username: cleanPhone,
-         UserAttributes: [
-            { Name: "phone_number", Value: cleanPhone },
-            { Name: "name", Value: name }
-         ]
-      });
-
-      await client.send(command);
-      return { success: true, message: "User registered. Please log in." };
-
-   } catch (error: any) {
-      console.error("Register Error:", error);
       return { success: false, message: error.message };
    }
+}
+
+export async function verifyOtp(phone: string, otp: string, session: string): Promise<AuthResult> {
+   try {
+      const res = await fetch(`${API_URL}/auth/otp/verify`, {
+         method: "POST",
+         headers: { "Content-Type": "application/json" },
+         body: JSON.stringify({ phone, otp, session }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || "Failed to verify OTP");
+
+      return {
+         success: true,
+         tokens: data.tokens,
+         message: "Login successful"
+      };
+   } catch (error: any) {
+      return { success: false, message: error.message };
+   }
+}
+
+export async function registerUser(phone: string, name: string): Promise<AuthResult> {
+   // Registration is handled automatically by the backend requestOTP flow
+   // But if we need a specific register call, we can add it.
+   // For now, we'll reuse sendOtp as it handles user creation if missing.
+   return sendOtp(phone);
 }

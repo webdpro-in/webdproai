@@ -43,9 +43,13 @@ export interface GeneratedAsset {
    websiteUrl?: string;
    metadata?: {
       generationTime: number;
-      bedrockRegion: string;
-      storageRegion: string;
+      bedrockRegion?: string;
+      storageRegion?: string;
       tenantId: string;
       storeId: string;
+      mode?: string;
+      sectionsGenerated?: number;
+      imagesGenerated?: number;
+      htmlSize?: number;
    };
 }

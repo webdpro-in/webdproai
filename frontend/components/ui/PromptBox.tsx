@@ -37,20 +37,20 @@ export function PromptBox({ onSubmit, isGenerating }: PromptBoxProps) {
          {/* Background Glow Effect */}
          <div
             className={cnUtil(
-               "absolute -inset-1 rounded-2xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-30 blur-xl transition-all duration-500",
-               isFocused ? "opacity-70 blur-2xl" : "group-hover:opacity-50"
+               "absolute -inset-1 rounded-2xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-20 blur-xl transition-all duration-500",
+               isFocused ? "opacity-50 blur-2xl" : "group-hover:opacity-30"
             )}
          />
 
          <form onSubmit={handleSubmit} className="relative">
             <div
                className={cnUtil(
-                  "relative flex items-center bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl p-2 transition-all duration-300 overflow-hidden",
-                  isFocused ? "ring-2 ring-indigo-500/50 scale-[1.02]" : "hover:border-white/20"
+                  "relative flex items-center bg-white backdrop-blur-xl border border-gray-200 rounded-2xl p-2 transition-all duration-300 overflow-hidden shadow-sm",
+                  isFocused ? "ring-2 ring-indigo-500/20 scale-[1.02] border-indigo-200" : "hover:border-gray-300"
                )}
             >
                {/* Icon */}
-               <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 text-indigo-400 ml-2">
+               <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 ml-2">
                   <Sparkles className={cnUtil("w-6 h-6", isGenerating ? "animate-spin" : "animate-pulse")} />
                </div>
 
@@ -62,7 +62,7 @@ export function PromptBox({ onSubmit, isGenerating }: PromptBoxProps) {
                   onFocus={() => setIsFocused(true)}
                   onBlur={() => setIsFocused(false)}
                   placeholder="Describe your dream business... (e.g. 'Minimalist coffee shop in Tokyo')"
-                  className="flex-1 bg-transparent border-none text-white placeholder-gray-400 focus:ring-0 px-4 py-3 text-lg outline-none"
+                  className="flex-1 bg-transparent border-none text-gray-900 placeholder-gray-400 focus:ring-0 px-4 py-3 text-lg outline-none"
                   disabled={isGenerating}
                />
 
@@ -73,8 +73,8 @@ export function PromptBox({ onSubmit, isGenerating }: PromptBoxProps) {
                   className={cnUtil(
                      "flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all duration-300",
                      prompt.trim() && !isGenerating
-                        ? "bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/25"
-                        : "bg-white/5 text-gray-500 cursor-not-allowed"
+                        ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/25"
+                        : "bg-gray-100 text-gray-400 cursor-not-allowed"
                   )}
                >
                   {isGenerating ? (
@@ -99,7 +99,7 @@ export function PromptBox({ onSubmit, isGenerating }: PromptBoxProps) {
                      key={suggestion}
                      type="button"
                      onClick={() => setPrompt(suggestion)}
-                     className="text-xs bg-white/5 hover:bg-white/10 border border-white/5 px-3 py-1.5 rounded-full text-gray-400 hover:text-white transition-colors"
+                     className="text-xs bg-white border border-gray-200 px-3 py-1.5 rounded-full text-gray-600 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition-all shadow-sm"
                   >
                      {suggestion}
                   </button>

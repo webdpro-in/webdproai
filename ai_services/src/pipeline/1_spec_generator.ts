@@ -7,7 +7,7 @@
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 import { UserInput, SiteSpec } from "../schemas";
 
-const client = new BedrockRuntimeClient({ region: process.env.AWS_REGION || "eu-north-1" });
+const client = new BedrockRuntimeClient({ region: process.env.AWS_BEDROCK_REGION || "us-east-1" });
 
 export async function generateSpec(input: UserInput): Promise<SiteSpec> {
    const prompt = `
@@ -28,18 +28,24 @@ export async function generateSpec(input: UserInput): Promise<SiteSpec> {
         type: 'hero' | 'features' | 'products' | 'contact' | 'about';
         title: string;
         subtitle: string;
-        content: any; // Key-value pairs of text content
-        imagePrompt: string; // Detailed prompt for Stable Diffusion describing the image needed for this section
+        content: {
+           // For 'hero': { cta: string, headline: string }
+           // For 'products': { products: { name: string; price: number; description: string; category: string }[] }
+           // For others: key-value pairs
+           [key: string]: any; 
+        };
+        imagePrompt: string; 
       }[];
     }
     
     Ensure the "imagePrompt" is highly descriptive, photorealistic, and matches the business theme.
+    For type='products', you MUST generate 3-5 realistic products with prices in ${input.themePreference === 'luxury' ? 'USD' : 'INR'}.
     The output must be ONLY the JSON object. No markdown, no "Here is the JSON".
   `;
 
    try {
       const response = await client.send(new InvokeModelCommand({
-         modelId: "anthropic.claude-3-sonnet-20240229-v1:0",
+         modelId: process.env.AWS_BEDROCK_MODEL_PRIMARY || "anthropic.claude-3-5-sonnet-20240620-v1:0",
          contentType: "application/json",
          accept: "application/json",
          body: JSON.stringify({

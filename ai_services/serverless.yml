@@ -18,7 +18,7 @@ provider:
     AWS_S3_BUCKET_ASSETS: ${env:AWS_S3_BUCKET_ASSETS, 'webdpro-assets-ai-gen'}
     
     AWS_BEDROCK_REGION: ${env:AWS_BEDROCK_REGION, 'us-east-1'}
-    AWS_BEDROCK_MODEL_PRIMARY: ${env:AWS_BEDROCK_MODEL_PRIMARY, 'anthropic.claude-3-5-sonnet-20241022-v2:0'}
+    AWS_BEDROCK_MODEL_PRIMARY: ${env:AWS_BEDROCK_MODEL_PRIMARY, 'anthropic.claude-3-5-sonnet-20240620-v1:0'}
     AWS_BEDROCK_MODEL_FALLBACK_1: ${env:AWS_BEDROCK_MODEL_FALLBACK_1, 'anthropic.claude-3-haiku-20240307-v1:0'}
     AWS_BEDROCK_MODEL_FALLBACK_2: ${env:AWS_BEDROCK_MODEL_FALLBACK_2, 'amazon.titan-text-express-v1'}
     AWS_BEDROCK_MODEL_IMAGE: ${env:AWS_BEDROCK_MODEL_IMAGE, 'amazon.titan-image-generator-v1'}

@@ -15,11 +15,12 @@ provider:
     AWS_BEDROCK_REGION: ${env:AWS_BEDROCK_REGION, 'us-east-1'}
     AWS_CORE_REGION: ${env:AWS_CORE_REGION, 'eu-north-1'}
     DYNAMODB_TABLE_PREFIX: webdpro
-    COGNITO_USER_POOL_ID: ${env:COGNITO_USER_POOL_ID}
-    COGNITO_CLIENT_ID: ${env:COGNITO_CLIENT_ID}
     WEBDPRO_RAZORPAY_KEY_ID: ${env:RAZORPAY_KEY_ID, 'test_key'}
     WEBDPRO_RAZORPAY_KEY_SECRET: ${env:RAZORPAY_KEY_SECRET, 'test_secret'}
     EVENTS_TOPIC_ARN: !Ref WebDProEventsTopic
+    AI_SERVICE_URL: https://l0wi495th5.execute-api.eu-north-1.amazonaws.com/dev
+    S3_BUCKET: webdpro-ai-storage-dev
+    CLOUDFRONT_DISTRIBUTION_ID: ${env:CLOUDFRONT_DISTRIBUTION_ID, ''}
 
   iam:
     role:
@@ -46,6 +47,19 @@ provider:
             - cognito-idp:InitiateAuth
             - cognito-idp:RespondToAuthChallenge
           Resource: "*"
+        - Effect: Allow
+          Action:
+            - acm:RequestCertificate
+            - acm:DescribeCertificate
+            - acm:ListCertificates
+          Resource: "*"
+        - Effect: Allow
+          Action:
+            - cloudfront:CreateDistribution
+            - cloudfront:UpdateDistribution
+            - cloudfront:GetDistribution
+            - cloudfront:CreateInvalidation
+          Resource: "*"
 
 package:
   individually: true
@@ -62,6 +76,9 @@ functions:
           path: /auth/otp/request
           method: post
           cors: true
+    environment:
+      COGNITO_USER_POOL_ID: !Ref CognitoUserPoolWebDProUserPoolV3
+      COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
 
   verifyOTP:
     handler: src/handlers/auth.verifyOTP
@@ -70,6 +87,31 @@ functions:
           path: /auth/otp/verify
           method: post
           cors: true
+    environment:
+      COGNITO_USER_POOL_ID: !Ref CognitoUserPoolWebDProUserPoolV3
+      COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
+
+  syncGoogleUser:
+    handler: src/handlers/auth.syncGoogleUser
+    events:
+      - http:
+          path: /auth/google/sync
+          method: post
+          cors: true
+    environment:
+      COGNITO_USER_POOL_ID: !Ref CognitoUserPoolWebDProUserPoolV3
+      COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
+
+  getProfile:
+    handler: src/handlers/auth.getProfile
+    events:
+      - http:
+          path: /auth/profile
+          method: get
+          cors: true
+    environment:
+      COGNITO_USER_POOL_ID: !Ref CognitoUserPoolWebDProUserPoolV3
+      COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
 
   # Cognito Triggers
   defineAuthChallenge:
@@ -84,7 +126,7 @@ functions:
   # Store Functions
   generateStore:
     handler: src/handlers/stores.generateStore
-    timeout: 60
+    timeout: 29
     memorySize: 256
     events:
       - http:
@@ -100,9 +142,92 @@ functions:
           method: get
           cors: true
 
+  getStore:
+    handler: src/handlers/stores.getStore
+    events:
+      - http:
+          path: /stores/{storeId}
+          method: get
+          cors: true
+
+  publishStore:
+    handler: src/handlers/stores.publishStore
+    events:
+      - http:
+          path: /stores/{storeId}/publish
+          method: post
+          cors: true
+
+  updateStore:
+    handler: src/handlers/stores.updateStore
+    events:
+      - http:
+          path: /stores/{storeId}
+          method: put
+          cors: true
+
+  # Domain Management
+  connectDomain:
+    handler: src/handlers/domains.connectDomain
+    events:
+      - http:
+          path: /stores/{storeId}/domain
+          method: post
+          cors: true
+
+  getDomainStatus:
+    handler: src/handlers/domains.getDomainStatus
+    events:
+      - http:
+          path: /stores/{storeId}/domain/status
+          method: get
+          cors: true
+
+  verifyDomain:
+    handler: src/handlers/domains.verifyDomain
+    events:
+      - http:
+          path: /stores/{storeId}/domain/verify
+          method: post
+          cors: true
+
+  # Order Management
+  createOrder:
+    handler: src/handlers/orders.createOrder
+    events:
+      - http:
+          path: /stores/{storeId}/orders
+          method: post
+          cors: true
+
+  getOrder:
+    handler: src/handlers/orders.getOrder
+    events:
+      - http:
+          path: /orders/{orderId}
+          method: get
+          cors: true
+
+  getStoreOrders:
+    handler: src/handlers/orders.getStoreOrders
+    events:
+      - http:
+          path: /stores/{storeId}/orders
+          method: get
+          cors: true
+
+  updateOrderStatus:
+    handler: src/handlers/orders.updateOrderStatus
+    events:
+      - http:
+          path: /orders/{orderId}/status
+          method: put
+          cors: true
+
 plugins:
   - serverless-plugin-typescript
   - serverless-dotenv-plugin
+  - serverless-offline
 
 custom:
   serverless-plugin-typescript:
@@ -116,31 +241,112 @@ custom:
 
 resources:
   Resources:
+    # IAM Role for Cognito SMS
+    CognitoSMSRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: cognito-idp.amazonaws.com
+              Action: sts:AssumeRole
+        Policies:
+          - PolicyName: CognitoSMSPolicy
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action: sns:publish
+                  Resource: "*"
+
     # Cognito User Pool
-    CognitoUserPoolWebDProUserPool:
+    CognitoUserPoolWebDProUserPoolV3:
       Type: AWS::Cognito::UserPool
       Properties:
         UserPoolName: ${self:custom.userPoolName}
         MfaConfiguration: OFF
+        AliasAttributes:
+          - email
+        AutoVerifiedAttributes:
+          - email
         Schema:
+          - Name: email
+            AttributeDataType: String
+            Mutable: true
+            Required: false
           - Name: phone_number
             AttributeDataType: String
             Mutable: true
-            Required: true
+            Required: false
+          - Name: role
+            AttributeDataType: String
+            Mutable: true
+            Required: false
+          - Name: tenant_id
+            AttributeDataType: String
+            Mutable: true
+            Required: false
+          - Name: plan
+            AttributeDataType: String
+            Mutable: true
+            Required: false
         LambdaConfig:
           DefineAuthChallenge: !GetAtt DefineAuthChallengeLambdaFunction.Arn
           CreateAuthChallenge: !GetAtt CreateAuthChallengeLambdaFunction.Arn
           VerifyAuthChallengeResponse: !GetAtt VerifyAuthChallengeResponseLambdaFunction.Arn
 
+    # Cognito User Pool Domain (Required for Google Sign-In)
+    CognitoUserPoolDomainV3:
+      Type: AWS::Cognito::UserPoolDomain
+      Properties:
+        UserPoolId: !Ref CognitoUserPoolWebDProUserPoolV3
+        Domain: webdpro-auth-dev-kb83 # Fixed unique domain for stable OAuth URLs
+
+    # Google Identity Provider
+    CognitoUserPoolIdentityProviderGoogle:
+      Type: AWS::Cognito::UserPoolIdentityProvider
+      Properties:
+        UserPoolId: !Ref CognitoUserPoolWebDProUserPoolV3
+        ProviderName: Google
+        ProviderDetails:
+          client_id: ${env:GOOGLE_CLIENT_ID, 'mock-client-id'}
+          client_secret: ${env:GOOGLE_CLIENT_SECRET, 'mock-client-secret'}
+          authorize_scopes: "email profile openid"
+        ProviderType: Google
+        AttributeMapping:
+          email: email
+          name: name
+          picture: picture
+
     CognitoUserPoolClient:
       Type: AWS::Cognito::UserPoolClient
+      DependsOn: CognitoUserPoolIdentityProviderGoogle
       Properties:
         ClientName: webdpro-client
         GenerateSecret: false
-        UserPoolId: !Ref CognitoUserPoolWebDProUserPool
+        UserPoolId: !Ref CognitoUserPoolWebDProUserPoolV3
+        SupportedIdentityProviders:
+          - COGNITO
+          - Google
+        AllowedOAuthFlows:
+          - code
+        AllowedOAuthScopes:
+          - email
+          - openid
+          - profile
+        AllowedOAuthFlowsUserPoolClient: true
+        CallbackURLs:
+          - ${env:COGNITO_CALLBACK_URL, 'http://localhost:3000/auth/callback'}
+          - https://d3qhkomcxcxmtl.cloudfront.net/auth/callback
+        LogoutURLs:
+          - ${env:COGNITO_LOGOUT_URL, 'http://localhost:3000'}
+          - https://d3qhkomcxcxmtl.cloudfront.net
         ExplicitAuthFlows:
           - ALLOW_CUSTOM_AUTH
           - ALLOW_REFRESH_TOKEN_AUTH
+          - ALLOW_USER_SRP_AUTH
 
     # SNS Topic
     WebDProEventsTopic:
@@ -177,6 +383,88 @@ resources:
           - AttributeName: store_id
             KeyType: RANGE
 
+    TenantsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: webdpro-tenants
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: tenant_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: tenant_id
+            KeyType: HASH
+
+    OrdersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: webdpro-orders
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: order_id
+            AttributeType: S
+          - AttributeName: tenant_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: order_id
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: tenant-index
+            KeySchema:
+              - AttributeName: tenant_id
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+
+    PaymentsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: webdpro-payments
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: payment_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: payment_id
+            KeyType: HASH
+
+    ProductsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: webdpro-products
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: store_id
+            AttributeType: S
+          - AttributeName: product_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: store_id
+            KeyType: HASH
+          - AttributeName: product_id
+            KeyType: RANGE
+
+    DeliveryTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: webdpro-delivery
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: delivery_id
+            AttributeType: S
+          - AttributeName: agent_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: delivery_id
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: agent-index
+            KeySchema:
+              - AttributeName: agent_id
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+
 
 
     # Permissions for Cognito to invoke Lambdas
@@ -186,7 +474,7 @@ resources:
         Action: lambda:InvokeFunction
         FunctionName: !GetAtt DefineAuthChallengeLambdaFunction.Arn
         Principal: cognito-idp.amazonaws.com
-        SourceArn: !GetAtt CognitoUserPoolWebDProUserPool.Arn
+        SourceArn: !GetAtt CognitoUserPoolWebDProUserPoolV3.Arn
 
     CreateAuthChallengePermission:
       Type: AWS::Lambda::Permission
@@ -194,7 +482,7 @@ resources:
         Action: lambda:InvokeFunction
         FunctionName: !GetAtt CreateAuthChallengeLambdaFunction.Arn
         Principal: cognito-idp.amazonaws.com
-        SourceArn: !GetAtt CognitoUserPoolWebDProUserPool.Arn
+        SourceArn: !GetAtt CognitoUserPoolWebDProUserPoolV3.Arn
 
     VerifyAuthChallengeResponsePermission:
       Type: AWS::Lambda::Permission
@@ -202,11 +490,11 @@ resources:
         Action: lambda:InvokeFunction
         FunctionName: !GetAtt VerifyAuthChallengeResponseLambdaFunction.Arn
         Principal: cognito-idp.amazonaws.com
-        SourceArn: !GetAtt CognitoUserPoolWebDProUserPool.Arn
+        SourceArn: !GetAtt CognitoUserPoolWebDProUserPoolV3.Arn
 
   Outputs:
     UserPoolId:
-      Value: !Ref CognitoUserPoolWebDProUserPool
+      Value: !Ref CognitoUserPoolWebDProUserPoolV3
     UserPoolClientId:
       Value: !Ref CognitoUserPoolClient
     EventsTopicArn:

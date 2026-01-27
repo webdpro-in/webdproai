@@ -123,11 +123,13 @@ export class CrossRegionBedrockClient {
         
       } catch (error) {
         lastError = error as Error;
-        console.log(`❌ Level ${i + 1} (${level.name}) failed: ${error.message}`);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.log(`❌ Level ${i + 1} (${level.name}) failed: ${errorMessage}`);
         
         // If this is the last level, it should never fail (rule-based)
         if (i === fallbackChain.length - 1) {
-          throw new Error(`All AI levels failed. Last error: ${error.message}`);
+          const lastErrorMessage = error instanceof Error ? error.message : 'Unknown error';
+          throw new Error(`All AI levels failed. Last error: ${lastErrorMessage}`);
         }
         
         continue;
@@ -355,7 +357,7 @@ export class CrossRegionBedrockClient {
   }
 
   private getTemplate(businessType: string): string {
-    const templates = {
+    const templates: Record<string, string> = {
       grocery: `<!DOCTYPE html>
 <html><head><title>Fresh Vegetables Store</title></head>
 <body><h1>Welcome to Our Fresh Vegetable Store</h1>

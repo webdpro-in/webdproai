@@ -158,6 +158,52 @@ export const generateStore = async (event: APIGatewayEvent) => {
          createdAt: new Date().toISOString()
       });
 
+      // Populate Inventory from AI Results
+      const productsTable = `${process.env.DYNAMODB_TABLE_PREFIX}-products`;
+      try {
+         const productSection = website.config.sections.find((s: any) => s.type === 'products');
+         if (productSection && productSection.content && Array.isArray(productSection.content.products)) {
+            console.log(`[Store ${storeId}] Auto-populating ${productSection.content.products.length} products...`);
+
+            const productPromises = productSection.content.products.map((p: any) => {
+               const productId = uuidv4();
+               const now = new Date().toISOString();
+               return docClient.send(new PutCommand({
+                  TableName: productsTable,
+                  Item: {
+                     tenant_id: tenantId,
+                     product_id: productId,
+                     business_id: storeId,
+                     store_id: storeId,
+                     name: p.name,
+                     description: p.description,
+                     price: parseFloat(p.price) || 0,
+                     category: p.category || 'General',
+                     sku: `AI_${productId.slice(0, 8)}`,
+                     stock_quantity: 50, // Default stock
+                     min_stock_level: 5,
+                     images: [], // Images will be generated later or placeholders
+                     variants: [],
+                     status: 'active',
+                     is_active: true,
+                     created_at: now,
+                     updated_at: now,
+                     search_keywords: [p.name.toLowerCase(), p.category?.toLowerCase() || ''],
+                     views_count: 0,
+                     orders_count: 0,
+                     revenue_total: 0
+                  }
+               }));
+            });
+
+            await Promise.all(productPromises);
+            console.log(`[Store ${storeId}] Products populated successfully.`);
+         }
+      } catch (inventoryError) {
+         console.error('Failed to populate inventory:', inventoryError);
+         // Do not fail the store generation, just log error
+      }
+
       return response(201, {
          success: true,
          message: 'Store generated successfully',
@@ -278,9 +324,30 @@ export const publishStore = async (event: APIGatewayEvent) => {
          return response(404, { error: 'Store not found' });
       }
 
-      if (store.status !== 'DRAFT' && store.status !== 'PAID') {
-         return response(400, { error: 'Store must be in DRAFT or PAID status to publish' });
+      // Check Merchant Subscription
+      const merchantResult = await docClient.send(new GetCommand({
+         TableName: 'webdpro-merchants',
+         Key: { merchant_id: tenantId }
+      }));
+
+      const merchant = merchantResult.Item;
+      const isSubscribed = merchant &&
+         merchant.subscription_status === 'active' &&
+         new Date(merchant.subscription_expires_at) > new Date();
+
+      if (!isSubscribed) {
+         // Allow if store was previously paid for (legacy) or if doing one-time payment flow
+         if (store.status !== 'PAID') {
+            return response(402, {
+               error: 'Active subscription required to publish',
+               requires_payment: true,
+               pricing_url: '/pricing'
+            });
+         }
       }
+
+      // If valid, proceed (even if DRAFT)
+
 
       // Copy from drafts to production
       const draftPath = `drafts/${tenantId}/${storeId}`;

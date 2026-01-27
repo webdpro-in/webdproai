@@ -55,7 +55,8 @@ export const generateWebsite = async (event: APIGatewayProxyEvent): Promise<APIG
          result = await orchestrateSiteGeneration(userInput, tenantId, storeId);
       } catch (bedrockError) {
          console.log('[AI Generate] Bedrock failed, using fallback generation...');
-         console.log('[Fallback Reason]', bedrockError.message);
+         const errorMessage = bedrockError instanceof Error ? bedrockError.message : 'Unknown error';
+         console.log('[Fallback Reason]', errorMessage);
          result = await orchestrateSiteGenerationFallback(userInput, tenantId, storeId);
       }
 

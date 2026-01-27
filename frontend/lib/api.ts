@@ -9,7 +9,7 @@ interface APIError {
 }
 
 async function fetchAPI<T>(url: string, options?: RequestInit): Promise<T> {
-   const token = localStorage.getItem("token"); // For Cognito Auth if integrated later
+   const token = localStorage.getItem("token");
 
    const headers = {
       "Content-Type": "application/json",
@@ -26,6 +26,67 @@ async function fetchAPI<T>(url: string, options?: RequestInit): Promise<T> {
 
    return data as T;
 }
+
+// --- AUTH ---
+export const apiAuth = {
+   requestOTP: async (phone: string) => {
+      return fetchAPI<{ success: boolean; session: string; message: string }>(
+         `${API_BASE_URL}/auth/otp/request`,
+         { method: "POST", body: JSON.stringify({ phone, role: "BUSINESS_OWNER" }) }
+      );
+   },
+
+   verifyOTP: async (phone: string, otp: string, session: string) => {
+      return fetchAPI<{
+         success: boolean;
+         tokens: { accessToken: string; idToken: string; refreshToken: string };
+         user: { id: string; phone: string; role: string; name: string };
+      }>(
+         `${API_BASE_URL}/auth/otp/verify`,
+         { method: "POST", body: JSON.stringify({ phone, otp, session }) }
+      );
+   }
+};
+
+// --- STORES ---
+export const apiStores = {
+   generateStore: async (data: {
+      prompt: string;
+      storeType?: string;
+      language?: string;
+      currency?: string;
+   }) => {
+      return fetchAPI<{
+         success: boolean;
+         store: { store_id: string; status: string; preview_url: string; config: any };
+      }>(
+         `${API_BASE_URL}/stores/generate`,
+         { method: "POST", body: JSON.stringify(data) }
+      );
+   },
+
+   getStores: async () => {
+      return fetchAPI<{ success: boolean; stores: any[]; count: number }>(
+         `${API_BASE_URL}/stores`
+      );
+   },
+
+   getStore: async (storeId: string) => {
+      return fetchAPI<{ success: boolean; store: any }>(
+         `${API_BASE_URL}/stores/${storeId}`
+      );
+   },
+
+   publishStore: async (storeId: string, subdomain?: string) => {
+      return fetchAPI<{
+         success: boolean;
+         store: { store_id: string; status: string; live_url: string; domain: string };
+      }>(
+         `${API_BASE_URL}/stores/${storeId}/publish`,
+         { method: "POST", body: JSON.stringify({ subdomain }) }
+      );
+   }
+};
 
 // --- PAYMENTS ---
 export const apiPayments = {
@@ -46,6 +107,19 @@ export const apiPayments = {
          `${PAYMENTS_BASE_URL}/payments/subscription`,
          { method: "POST", body: JSON.stringify({ tenantId, planId }) }
       );
+   },
+
+   createStoreOrder: async (orderId: string) => {
+      return fetchAPI<{
+         success: boolean;
+         order_id: string;
+         razorpay_order_id: string;
+         amount: number;
+         currency: string;
+      }>(
+         `${PAYMENTS_BASE_URL}/payments/checkout`,
+         { method: "POST", body: JSON.stringify({ order_id: orderId }) }
+      );
    }
 };
 
@@ -57,7 +131,6 @@ export const apiAI = {
       themePreference?: string;
       tenantId: string;
    }) => {
-      // Assuming headers will carry Tenant ID in real auth, but MVP might pass in body
       return fetchAPI<{ success: true; url: string }>(
          `${AI_BASE_URL}/ai/generate`,
          { method: "POST", body: JSON.stringify(data) }
@@ -65,19 +138,41 @@ export const apiAI = {
    }
 };
 
-// --- ORDERS ---
-export const apiOrders = {
-   listOrders: async (tenantId: string): Promise<any[]> => {
-      return fetchAPI<any[]>(`${API_BASE_URL}/orders?tenantId=${tenantId}`);
+// --- INVENTORY ---
+export const apiInventory = {
+   getProducts: async (storeId: string) => {
+      return fetchAPI<any[]>(`${INVENTORY_BASE_URL}/inventory/${storeId}/products`);
+   },
+
+   createProduct: async (storeId: string, product: any) => {
+      return fetchAPI(`${INVENTORY_BASE_URL}/inventory/${storeId}/products`, {
+         method: "POST",
+         body: JSON.stringify(product)
+      });
+   },
+
+   updateStock: async (storeId: string, productId: string, quantity: number) => {
+      return fetchAPI(`${INVENTORY_BASE_URL}/inventory/${storeId}/stock/${productId}`, {
+         method: "PUT",
+         body: JSON.stringify({ quantity, operation: "set" })
+      });
+   },
+
+   getLowStock: async (storeId: string) => {
+      return fetchAPI<any[]>(`${INVENTORY_BASE_URL}/inventory/${storeId}/low-stock`);
    }
 };
 
-// --- INVENTORY ---
-export const apiInventory = {
-   updateStock: async (storeId: string, productId: string, qty: number) => {
-      return fetchAPI(`${INVENTORY_BASE_URL}/inventory/${storeId}/stock/${productId}`, {
-         method: "PUT",
-         body: JSON.stringify({ quantity: qty, operation: "set" })
-      });
+// --- ORDERS ---
+export const apiOrders = {
+   listOrders: async (storeId: string) => {
+      return fetchAPI<any[]>(`${API_BASE_URL}/stores/${storeId}/orders`);
+   },
+
+   updateOrderStatus: async (orderId: string, status: string) => {
+      return fetchAPI<{ success: boolean; order: any }>(
+         `${API_BASE_URL}/orders/${orderId}/status`,
+         { method: "PUT", body: JSON.stringify({ status }) }
+      );
    }
 };

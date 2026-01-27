@@ -32,35 +32,30 @@ export class AIServiceClient {
    private baseUrl: string;
 
    constructor() {
-      // In production, this would be the AI service API Gateway URL
-      // For now, we'll use direct function calls as fallback
-      this.baseUrl = process.env.AI_SERVICE_URL || 'http://localhost:3002';
+      // Use the deployed AI service URL
+      this.baseUrl = process.env.AI_SERVICE_URL || 'https://l0wi495th5.execute-api.eu-north-1.amazonaws.com/dev';
    }
 
    async generateWebsite(request: AIGenerationRequest): Promise<AIGenerationResponse> {
       try {
-         // Try HTTP call first
-         if (this.baseUrl !== 'http://localhost:3002') {
-            const response = await fetch(`${this.baseUrl}/ai/generate`, {
-               method: 'POST',
-               headers: {
-                  'Content-Type': 'application/json',
-               },
-               body: JSON.stringify(request),
-            });
+         console.log(`[AI Client] Calling ${this.baseUrl}/ai/generate`);
+         
+         const response = await fetch(`${this.baseUrl}/ai/generate`, {
+            method: 'POST',
+            headers: {
+               'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(request),
+         });
 
-            if (!response.ok) {
-               throw new Error(`AI service returned ${response.status}`);
-            }
-
-            return await response.json();
+         if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`AI service returned ${response.status}: ${errorText}`);
          }
 
-         // Fallback to direct import (for development)
-         // Fallback disabled in production/deployment to avoid file path issues
-         throw new Error("AI Service URL not configured and local fallback disabled in this environment.");
-
-
+         const result = await response.json();
+         console.log('[AI Client] Generation successful');
+         return result;
 
       } catch (error) {
          console.error('AI service call failed:', error);

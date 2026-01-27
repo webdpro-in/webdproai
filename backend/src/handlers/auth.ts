@@ -1,15 +1,16 @@
 /**
  * WebDPro Backend - Auth Handlers
- * AWS Cognito integration for OTP-based authentication
+ * AWS Cognito integration for OTP-based authentication and Google OAuth
  */
 
 import {
    CognitoIdentityProviderClient,
    InitiateAuthCommand,
    RespondToAuthChallengeCommand,
-   SignUpCommand,
    AdminGetUserCommand,
    AdminCreateUserCommand,
+   AdminSetUserPasswordCommand,
+   GetUserCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
@@ -35,7 +36,6 @@ const response = (statusCode: number, body: any) => ({
    headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Credentials': true,
    },
    body: JSON.stringify(body),
 });
@@ -71,6 +71,9 @@ export const requestOTP = async (event: APIGatewayEvent) => {
       }
 
       if (!userExists) {
+         // Generate tenant_id for business owners
+         const tenantId = role === 'BUSINESS_OWNER' ? `tenant_${Date.now()}` : '';
+
          // Create new user (Cognito will send OTP)
          await cognitoClient.send(new AdminCreateUserCommand({
             UserPoolId: USER_POOL_ID,
@@ -79,8 +82,18 @@ export const requestOTP = async (event: APIGatewayEvent) => {
                { Name: 'phone_number', Value: normalizedPhone },
                { Name: 'phone_number_verified', Value: 'true' },
                { Name: 'custom:role', Value: role },
+               { Name: 'custom:tenant_id', Value: tenantId },
             ],
             MessageAction: 'SUPPRESS', // We'll handle OTP ourselves
+         }));
+
+         // Auto-confirm user by setting a permanent password
+         const tempPassword = `WebDPro${Math.random().toString(36).slice(-8)}!A1`;
+         await cognitoClient.send(new AdminSetUserPasswordCommand({
+            UserPoolId: USER_POOL_ID,
+            Username: normalizedPhone,
+            Password: tempPassword,
+            Permanent: true,
          }));
       }
 
@@ -155,6 +168,7 @@ export const verifyOTP = async (event: APIGatewayEvent) => {
             phone: user.phone,
             role: user.role,
             name: user.name,
+            tenant_id: user.tenant_id,
          },
       });
    } catch (error: any) {
@@ -227,7 +241,58 @@ export const getProfile = async (event: APIGatewayEvent) => {
    }
 };
 
-// Helper: Get user profile from DynamoDB
+/**
+ * POST /auth/google/sync
+ * Sync Google OAuth user to DynamoDB
+ */
+export const syncGoogleUser = async (event: APIGatewayEvent) => {
+   try {
+      const authHeader = event.headers.Authorization || event.headers.authorization;
+      if (!authHeader) {
+         return response(401, { error: 'No authorization token provided' });
+      }
+
+      const token = authHeader.replace('Bearer ', '');
+
+      // Get user info from Cognito using the access token
+      const userInfo = await cognitoClient.send(new GetUserCommand({
+         AccessToken: token,
+      }));
+
+      const email = userInfo.UserAttributes?.find(attr => attr.Name === 'email')?.Value;
+      const name = userInfo.UserAttributes?.find(attr => attr.Name === 'name')?.Value;
+      const sub = userInfo.UserAttributes?.find(attr => attr.Name === 'sub')?.Value;
+
+      if (!email || !sub) {
+         return response(400, { error: 'Invalid user data from Google' });
+      }
+
+      // Check if user already exists by email
+      let user = await getUserProfileByEmail(email);
+
+      if (!user) {
+         // Create new user profile
+         user = await createUserProfile(email, 'BUSINESS_OWNER', name, sub);
+      }
+
+      return response(200, {
+         success: true,
+         user: {
+            id: user.user_id,
+            phone: user.phone,
+            email: user.email,
+            role: user.role,
+            name: user.name,
+            tenant_id: user.tenant_id,
+         },
+      });
+   } catch (error: any) {
+      console.error('Error syncing Google user:', error);
+      return response(500, { error: 'Failed to sync user profile' });
+   }
+};
+
+// Helper: Get user profile from DynamoDB by phone
 async function getUserProfile(phone: string) {
    try {
       const result = await docClient.send(new GetCommand({
@@ -240,14 +305,28 @@ async function getUserProfile(phone: string) {
    }
 }
 
+// Helper: Get user profile from DynamoDB by email (scan operation)
+async function getUserProfileByEmail(email: string) {
+   try {
+      // In production, you should use a GSI on email for better performance
+      const result = await docClient.send(new GetCommand({
+         TableName: USERS_TABLE,
+         Key: { phone: email }, // Using email as phone for Google users
+      }));
+      return result.Item;
+   } catch {
+      return null;
+   }
+}
+
 // Helper: Create user profile in DynamoDB
-async function createUserProfile(phone: string, role: string) {
+async function createUserProfile(identifier: string, role: string, name?: string, cognitoSub?: string) {
    const user = {
-      user_id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      phone,
+      user_id: cognitoSub || `user_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+      phone: identifier,
+      email: identifier.includes('@') ? identifier : null,
       role,
-      name: null,
-      email: null,
+      name: name || null,
       tenant_id: role === 'BUSINESS_OWNER' ? `tenant_${Date.now()}` : null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),

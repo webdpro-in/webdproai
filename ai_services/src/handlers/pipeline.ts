@@ -4,9 +4,9 @@
  */
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { generateSpec } from '../pipeline/1_spec_generator';
-import { generateCode } from '../pipeline/2_code_generator';
-import { generateImages } from '../pipeline/3_image_generator';
+import { generateSpec as generateSpecPipeline } from '../pipeline/1_spec_generator';
+import { generateCode as generateCodePipeline } from '../pipeline/2_code_generator';
+import { generateImages as generateImagesPipeline } from '../pipeline/3_image_generator';
 import { UserInput, SiteSpec } from '../schemas';
 
 // Helper: Create response
@@ -42,7 +42,7 @@ export const generateSpec = async (event: APIGatewayProxyEvent): Promise<APIGate
          themePreference: input.themePreference
       };
 
-      const spec = await generateSpec(userInput);
+      const spec = await generateSpecPipeline(userInput);
 
       return response(200, {
          success: true,
@@ -72,7 +72,7 @@ export const generateCode = async (event: APIGatewayProxyEvent): Promise<APIGate
       }
 
       const siteSpec: SiteSpec = spec;
-      const code = await generateCode(siteSpec);
+      const code = await generateCodePipeline(siteSpec);
 
       return response(200, {
          success: true,
@@ -102,7 +102,7 @@ export const generateImages = async (event: APIGatewayProxyEvent): Promise<APIGa
       }
 
       const siteSpec: SiteSpec = spec;
-      const images = await generateImages(siteSpec, tenantId, storeId);
+      const images = await generateImagesPipeline(siteSpec, tenantId, storeId);
 
       return response(200, {
          success: true,

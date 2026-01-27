@@ -50,31 +50,67 @@ export async function orchestrateSiteGenerationFallback(
             generationTime,
             mode: 'fallback',
             tenantId,
-            storeId
+            storeId,
+            bedrockRegion: 'none',
+            storageRegion: 'local'
          }
       };
 
    } catch (error) {
       console.error(`[Error] Fallback generation failed:`, error);
-      throw new Error(`Website generation failed: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Website generation failed: ${errorMessage}`);
    }
 }
 
-function generateSpecFallback(input: UserInput) {
+function generateSpecFallback(input: UserInput): any {
    const businessType = input.businessType || 'general';
    const location = input.location || 'Local Area';
    
    return {
+      meta: {
+         title: input.businessName,
+         description: input.description || `${input.businessName} - Your trusted ${businessType} store`,
+         keywords: [businessType, location, 'online store'],
+         theme_color: getColorsForBusiness(businessType).primary
+      },
+      navigation: [
+         { label: 'Home', sectionId: 'hero' },
+         { label: 'Products', sectionId: 'products' },
+         { label: 'About', sectionId: 'about' },
+         { label: 'Contact', sectionId: 'contact' }
+      ],
+      sections: [
+         { 
+            id: 'hero', 
+            title: 'Welcome', 
+            type: 'hero' as const,
+            content: { businessName: input.businessName, location },
+            imagePrompt: `Hero image for ${input.businessName}`
+         },
+         { 
+            id: 'products', 
+            title: 'Our Products', 
+            type: 'products' as const,
+            content: { description: 'Quality products for your needs' }
+         },
+         { 
+            id: 'about', 
+            title: 'About Us', 
+            type: 'about' as const,
+            content: { description: input.description || 'We are committed to quality' }
+         },
+         { 
+            id: 'contact', 
+            title: 'Contact', 
+            type: 'contact' as const,
+            content: { location }
+         }
+      ],
       businessName: input.businessName,
       businessType,
       location,
       theme: getThemeForBusiness(businessType),
-      sections: [
-         { id: 'hero', title: 'Welcome', type: 'hero' },
-         { id: 'products', title: 'Our Products', type: 'products' },
-         { id: 'about', title: 'About Us', type: 'about' },
-         { id: 'contact', title: 'Contact', type: 'contact' }
-      ],
       colors: getColorsForBusiness(businessType)
    };
 }
@@ -149,8 +185,8 @@ function generateImagesFallback(spec: any) {
    };
 }
 
-function getThemeForBusiness(businessType: string) {
-   const themes = {
+function getThemeForBusiness(businessType: string): string {
+   const themes: Record<string, string> = {
       grocery: 'fresh-green',
       restaurant: 'warm-orange',
       clothing: 'elegant-purple',
@@ -160,8 +196,8 @@ function getThemeForBusiness(businessType: string) {
    return themes[businessType] || themes.default;
 }
 
-function getColorsForBusiness(businessType: string) {
-   const colorSchemes = {
+function getColorsForBusiness(businessType: string): { primary: string; secondary: string } {
+   const colorSchemes: Record<string, { primary: string; secondary: string }> = {
       grocery: { primary: '#4CAF50', secondary: '#8BC34A' },
       restaurant: { primary: '#FF5722', secondary: '#FF9800' },
       clothing: { primary: '#9C27B0', secondary: '#E91E63' },

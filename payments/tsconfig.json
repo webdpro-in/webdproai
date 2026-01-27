@@ -9,7 +9,8 @@
       "preserveConstEnums": true,
       "outDir": "dist",
       "sourceMap": true,
-      "esModuleInterop": true
+      "esModuleInterop": true,
+      "skipLibCheck": true
    },
    "include": [
       "src/**/*"

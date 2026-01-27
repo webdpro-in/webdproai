@@ -11,8 +11,19 @@ import {
    Settings,
    LogOut,
    Menu,
-   X
+   X,
+   Building2,
+   CreditCard,
+   AlertCircle
 } from "lucide-react";
+
+interface UserProfile {
+   name: string;
+   email: string;
+   phone: string;
+   role: string;
+   tenant_id: string;
+}
 
 export default function DashboardLayout({
    children,
@@ -22,12 +33,23 @@ export default function DashboardLayout({
    const router = useRouter();
    const pathname = usePathname();
    const [isSidebarOpen, setSidebarOpen] = useState(true);
+   const [user, setUser] = useState<UserProfile | null>(null);
 
    useEffect(() => {
       // Basic Auth Check
       const token = localStorage.getItem("token");
       if (!token) {
          router.push("/login");
+      }
+
+      // Load user profile
+      const storedUser = localStorage.getItem("user");
+      if (storedUser) {
+         try {
+            setUser(JSON.parse(storedUser));
+         } catch (e) {
+            console.error("Failed to parse user data", e);
+         }
       }
    }, [router]);
 
@@ -85,7 +107,38 @@ export default function DashboardLayout({
                   })}
                </nav>
 
-               <div className="p-4 border-t border-gray-100">
+               <div className="p-4 border-t border-gray-100 space-y-3">
+                  {/* Tenant Info */}
+                  {user && (
+                     <div className="space-y-2">
+                        <div className="p-3 bg-gray-50 rounded-lg">
+                           <div className="flex items-center gap-2 mb-1">
+                              <Building2 className="w-3.5 h-3.5 text-gray-500" />
+                              <p className="text-xs text-gray-500 font-medium">Tenant ID</p>
+                           </div>
+                           <p className="text-xs font-mono font-medium text-gray-700 truncate pl-5">
+                              {user.tenant_id || "N/A"}
+                           </p>
+                        </div>
+
+                        <div className="p-3 bg-gray-50 rounded-lg">
+                           <div className="flex items-center gap-2 mb-1">
+                              <CreditCard className="w-3.5 h-3.5 text-gray-500" />
+                              <p className="text-xs text-gray-500 font-medium">Razorpay Status</p>
+                           </div>
+                           <div className="flex items-center justify-between pl-5">
+                              <div className="flex items-center gap-1.5">
+                                 <AlertCircle className="w-3 h-3 text-amber-500" />
+                                 <p className="text-xs font-medium text-amber-600">Not Connected</p>
+                              </div>
+                              <button className="text-xs font-semibold text-indigo-600 hover:text-indigo-700">
+                                 Connect
+                              </button>
+                           </div>
+                        </div>
+                     </div>
+                  )}
+
                   <button
                      onClick={handleLogout}
                      className="flex items-center w-full px-4 py-3 text-sm font-medium text-red-600 rounded-lg hover:bg-red-50 transition-colors"

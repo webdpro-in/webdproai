@@ -33,6 +33,8 @@ const response = (statusCode: number, body: any): APIGatewayProxyResult => ({
    headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token',
       'Access-Control-Allow-Credentials': true,
    },
    body: JSON.stringify(body),

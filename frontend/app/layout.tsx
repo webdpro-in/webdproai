@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { ConditionalNavbar } from "@/components/layout/ConditionalNavbar";
-import Script from "next/script";
+import { NavbarWrapper } from "./NavbarWrapper";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -18,10 +17,12 @@ export default function RootLayout({
 }) {
    return (
       <html lang="en">
+         <head>
+            <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
+         </head>
          <body className={inter.className}>
-            <ConditionalNavbar />
+            <NavbarWrapper />
             {children}
-            <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
          </body>
       </html>
    );

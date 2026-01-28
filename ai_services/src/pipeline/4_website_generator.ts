@@ -9,11 +9,11 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { SiteSpec } from "../schemas";
 
-const s3 = new S3Client({ region: process.env.AWS_REGION || "eu-north-1" });
-const dbClient = new DynamoDBClient({ region: process.env.AWS_REGION || "eu-north-1" });
+const s3 = new S3Client({ region: process.env.AWS_S3_REGION || "eu-north-1" });
+const dbClient = new DynamoDBClient({ region: process.env.AWS_CORE_REGION || "eu-north-1" });
 const docClient = DynamoDBDocumentClient.from(dbClient);
 
-const S3_BUCKET = process.env.S3_BUCKET || "webdpro-ai";
+const S3_BUCKET = process.env.AWS_S3_BUCKET || "webdpro-ai-storage";
 const STORES_TABLE = `${process.env.DYNAMODB_TABLE_PREFIX || 'webdpro'}-stores`;
 
 interface GeneratedAssets {
@@ -59,7 +59,7 @@ export async function publishWebsite(
    const cloudfrontDomain = process.env.CLOUDFRONT_DOMAIN;
    const publicUrl = cloudfrontDomain
       ? `https://${cloudfrontDomain}/${basePath}/index.html`
-      : `https://${S3_BUCKET}.s3.${process.env.AWS_REGION || 'eu-north-1'}.amazonaws.com/${basePath}/index.html`;
+      : `https://${S3_BUCKET}.s3.${process.env.AWS_S3_REGION || 'eu-north-1'}.amazonaws.com/${basePath}/index.html`;
 
    // 4. Update Registry (DynamoDB)
    await docClient.send(new UpdateCommand({

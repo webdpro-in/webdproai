@@ -2,7 +2,7 @@ service: webdpro-delivery
 
 provider:
   name: aws
-  runtime: nodejs18.x
+  runtime: nodejs20.x
   region: eu-north-1
   memorySize: 256
   timeout: 30

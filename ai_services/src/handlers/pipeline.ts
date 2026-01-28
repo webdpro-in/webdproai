@@ -9,28 +9,52 @@ import { generateCode as generateCodePipeline } from '../pipeline/2_code_generat
 import { generateImages as generateImagesPipeline } from '../pipeline/3_image_generator';
 import { UserInput, SiteSpec } from '../schemas';
 
-// Helper: Create response
-const response = (statusCode: number, body: any): APIGatewayProxyResult => ({
+// Helper: Create standardized response with CORS headers
+const createResponse = (statusCode: number, body: any): APIGatewayProxyResult => ({
    statusCode,
    headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Credentials': true,
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token',
+      'Access-Control-Allow-Credentials': 'true',
    },
    body: JSON.stringify(body),
 });
+
+// Handle OPTIONS preflight requests
+const handleOptions = (): APIGatewayProxyResult => {
+   return createResponse(200, { message: 'CORS preflight successful' });
+};
 
 /**
  * POST /ai/spec
  * Generate site specification only
  */
 export const generateSpec = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+   // Handle OPTIONS preflight
+   if (event.httpMethod === 'OPTIONS') {
+      return handleOptions();
+   }
+
    try {
-      const body = JSON.parse(event.body || '{}');
+      console.log('[Generate Spec] Request received');
+
+      // Parse and validate request body
+      let body: any;
+      try {
+         body = JSON.parse(event.body || '{}');
+      } catch (parseError) {
+         console.error('[Generate Spec] JSON parse error:', parseError);
+         return createResponse(400, {
+            error: 'Invalid JSON in request body',
+         });
+      }
+
       const { input } = body;
 
       if (!input) {
-         return response(400, { error: 'Missing input field' });
+         return createResponse(400, { error: 'Missing required field: input' });
       }
 
       const userInput: UserInput = {
@@ -42,16 +66,23 @@ export const generateSpec = async (event: APIGatewayProxyEvent): Promise<APIGate
          themePreference: input.themePreference
       };
 
+      console.log('[Generate Spec] Processing:', userInput.businessName);
+
       const spec = await generateSpecPipeline(userInput);
 
-      return response(200, {
+      console.log('[Generate Spec] Generation successful');
+
+      return createResponse(200, {
          success: true,
          data: spec
       });
 
    } catch (error) {
-      console.error('[AI Spec] Error:', error);
-      return response(500, {
+      console.error('[Generate Spec] Error:', {
+         error: error instanceof Error ? error.message : 'Unknown error',
+         stack: error instanceof Error ? error.stack : undefined,
+      });
+      return createResponse(500, {
          error: 'Spec generation failed',
          details: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -63,25 +94,49 @@ export const generateSpec = async (event: APIGatewayProxyEvent): Promise<APIGate
  * Generate HTML/CSS from specification
  */
 export const generateCode = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+   // Handle OPTIONS preflight
+   if (event.httpMethod === 'OPTIONS') {
+      return handleOptions();
+   }
+
    try {
-      const body = JSON.parse(event.body || '{}');
+      console.log('[Generate Code] Request received');
+
+      // Parse and validate request body
+      let body: any;
+      try {
+         body = JSON.parse(event.body || '{}');
+      } catch (parseError) {
+         console.error('[Generate Code] JSON parse error:', parseError);
+         return createResponse(400, {
+            error: 'Invalid JSON in request body',
+         });
+      }
+
       const { spec } = body;
 
       if (!spec) {
-         return response(400, { error: 'Missing spec field' });
+         return createResponse(400, { error: 'Missing required field: spec' });
       }
+
+      console.log('[Generate Code] Processing code generation');
 
       const siteSpec: SiteSpec = spec;
       const code = await generateCodePipeline(siteSpec);
 
-      return response(200, {
+      console.log('[Generate Code] Generation successful');
+
+      return createResponse(200, {
          success: true,
          data: code
       });
 
    } catch (error) {
-      console.error('[AI Code] Error:', error);
-      return response(500, {
+      console.error('[Generate Code] Error:', {
+         error: error instanceof Error ? error.message : 'Unknown error',
+         stack: error instanceof Error ? error.stack : undefined,
+      });
+      return createResponse(500, {
          error: 'Code generation failed',
          details: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -93,25 +148,54 @@ export const generateCode = async (event: APIGatewayProxyEvent): Promise<APIGate
  * Generate images from specification
  */
 export const generateImages = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+   // Handle OPTIONS preflight
+   if (event.httpMethod === 'OPTIONS') {
+      return handleOptions();
+   }
+
    try {
-      const body = JSON.parse(event.body || '{}');
+      console.log('[Generate Images] Request received');
+
+      // Parse and validate request body
+      let body: any;
+      try {
+         body = JSON.parse(event.body || '{}');
+      } catch (parseError) {
+         console.error('[Generate Images] JSON parse error:', parseError);
+         return createResponse(400, {
+            error: 'Invalid JSON in request body',
+         });
+      }
+
       const { spec, tenantId, storeId } = body;
 
       if (!spec || !tenantId || !storeId) {
-         return response(400, { error: 'Missing required fields: spec, tenantId, storeId' });
+         return createResponse(400, { 
+            error: 'Missing required fields: spec, tenantId, storeId' 
+         });
       }
+
+      console.log('[Generate Images] Processing image generation', {
+         tenantId,
+         storeId,
+      });
 
       const siteSpec: SiteSpec = spec;
       const images = await generateImagesPipeline(siteSpec, tenantId, storeId);
 
-      return response(200, {
+      console.log('[Generate Images] Generation successful');
+
+      return createResponse(200, {
          success: true,
          data: images
       });
 
    } catch (error) {
-      console.error('[AI Images] Error:', error);
-      return response(500, {
+      console.error('[Generate Images] Error:', {
+         error: error instanceof Error ? error.message : 'Unknown error',
+         stack: error instanceof Error ? error.stack : undefined,
+      });
+      return createResponse(500, {
          error: 'Image generation failed',
          details: error instanceof Error ? error.message : 'Unknown error'
       });

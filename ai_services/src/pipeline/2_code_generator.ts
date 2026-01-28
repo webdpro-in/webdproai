@@ -7,7 +7,7 @@
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 import { SiteSpec } from "../schemas";
 
-const client = new BedrockRuntimeClient({ region: process.env.AWS_REGION || "eu-north-1" });
+const client = new BedrockRuntimeClient({ region: process.env.AWS_BEDROCK_REGION || "us-east-1" });
 
 export interface GeneratedCode {
    html: string;

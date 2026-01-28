@@ -2,7 +2,7 @@ service: webdpro-inventory
 
 provider:
   name: aws
-  runtime: nodejs18.x
+  runtime: nodejs20.x
   region: eu-north-1
   memorySize: 256
   timeout: 30
@@ -23,16 +23,17 @@ provider:
             - dynamodb:DeleteItem
           Resource:
             - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE_PREFIX}-*"
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE_PREFIX}-*/index/*"
         - Effect: Allow
           Action:
             - bedrock:InvokeModel
-          Resource: "*"
-        
-        # SNS
+            - bedrock:InvokeModelWithResponseStream
+          Resource: 
+            - "arn:aws:bedrock:us-east-1::foundation-model/*"
         - Effect: Allow
           Action:
             - sns:Publish
-          Resource: "*"
+          Resource: "${env:EVENTS_TOPIC_ARN, 'arn:aws:sns:eu-north-1:941172143855:webdpro-events-dev'}"
 
 
 package:
@@ -49,7 +50,16 @@ functions:
       - http:
           path: /inventory/{storeId}/products
           method: get
-          cors: true
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+            allowCredentials: false
 
   createProduct:
     handler: src/handlers/products.createProduct
@@ -57,7 +67,16 @@ functions:
       - http:
           path: /inventory/{storeId}/products
           method: post
-          cors: true
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+            allowCredentials: false
 
   updateProduct:
     handler: src/handlers/products.updateProduct
@@ -65,7 +84,16 @@ functions:
       - http:
           path: /inventory/{storeId}/products/{productId}
           method: put
-          cors: true
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+            allowCredentials: false
 
   deleteProduct:
     handler: src/handlers/products.deleteProduct
@@ -73,7 +101,16 @@ functions:
       - http:
           path: /inventory/{storeId}/products/{productId}
           method: delete
-          cors: true
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+            allowCredentials: false
 
   # Stock Management
   updateStock:
@@ -82,7 +119,16 @@ functions:
       - http:
           path: /inventory/{storeId}/stock/{productId}
           method: put
-          cors: true
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+            allowCredentials: false
 
   getLowStock:
     handler: src/handlers/stock.getLowStock
@@ -90,7 +136,16 @@ functions:
       - http:
           path: /inventory/{storeId}/low-stock
           method: get
-          cors: true
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+            allowCredentials: false
 
   # AI Predictions (scheduled)
   predictStock:

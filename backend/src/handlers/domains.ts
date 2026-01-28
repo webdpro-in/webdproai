@@ -5,12 +5,10 @@
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import { CloudFrontClient, CreateDistributionCommand, UpdateDistributionCommand } from '@aws-sdk/client-cloudfront';
 import { ACMClient, RequestCertificateCommand, DescribeCertificateCommand } from '@aws-sdk/client-acm';
 
 const dynamoClient = new DynamoDBClient({ region: process.env.AWS_REGION || 'eu-north-1' });
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
-const cfClient = new CloudFrontClient({ region: process.env.AWS_REGION || 'eu-north-1' });
 const acmClient = new ACMClient({ region: 'us-east-1' }); // ACM for CloudFront must be in us-east-1
 
 const STORES_TABLE = `${process.env.DYNAMODB_TABLE_PREFIX}-stores`;
@@ -26,6 +24,8 @@ const response = (statusCode: number, body: any) => ({
    headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token',
       'Access-Control-Allow-Credentials': true,
    },
    body: JSON.stringify(body),

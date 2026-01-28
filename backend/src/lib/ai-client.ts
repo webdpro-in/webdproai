@@ -30,6 +30,8 @@ interface AIGenerationResponse {
 
 export class AIServiceClient {
    private baseUrl: string;
+   private maxRetries: number = 3;
+   private retryDelay: number = 1000;
 
    constructor() {
       // Use the deployed AI service URL
@@ -37,34 +39,56 @@ export class AIServiceClient {
    }
 
    async generateWebsite(request: AIGenerationRequest): Promise<AIGenerationResponse> {
-      try {
-         console.log(`[AI Client] Calling ${this.baseUrl}/ai/generate`);
-         
-         const response = await fetch(`${this.baseUrl}/ai/generate`, {
-            method: 'POST',
-            headers: {
-               'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(request),
-         });
+      let lastError: Error | null = null;
 
-         if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`AI service returned ${response.status}: ${errorText}`);
+      for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
+         try {
+            console.log(
+               `[AI Client] Attempt ${attempt}/${this.maxRetries}: ` +
+               `Calling ${this.baseUrl}/ai/generate`
+            );
+
+            const response = await fetch(`${this.baseUrl}/ai/generate`, {
+               method: 'POST',
+               headers: {
+                  'Content-Type': 'application/json',
+               },
+               body: JSON.stringify(request),
+            });
+
+            const responseText = await response.text();
+
+            if (!response.ok) {
+               throw new Error(
+                  `AI service returned ${response.status}: ${responseText}`
+               );
+            }
+
+            const result = JSON.parse(responseText);
+            console.log('[AI Client] Generation successful');
+            return result;
+
+         } catch (error) {
+            lastError = error instanceof Error ? error : new Error('Unknown error');
+            console.error(
+               `[AI Client] Attempt ${attempt} failed:`,
+               lastError.message
+            );
+
+            if (attempt < this.maxRetries) {
+               const delay = this.retryDelay * attempt;
+               console.log(`[AI Client] Retrying in ${delay}ms...`);
+               await new Promise(resolve => setTimeout(resolve, delay));
+            }
          }
-
-         const result = await response.json();
-         console.log('[AI Client] Generation successful');
-         return result;
-
-      } catch (error) {
-         console.error('AI service call failed:', error);
-         return {
-            success: false,
-            error: 'AI generation failed',
-            details: error instanceof Error ? error.message : 'Unknown error'
-         };
       }
+
+      console.error('[AI Client] All retry attempts failed');
+      return {
+         success: false,
+         error: 'AI generation failed after retries',
+         details: lastError?.message || 'Unknown error',
+      };
    }
 }
 

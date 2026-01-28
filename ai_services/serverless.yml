@@ -2,14 +2,24 @@ service: webdpro-ai-services
 
 provider:
   name: aws
-  runtime: nodejs18.x
+  runtime: nodejs20.x
   region: eu-north-1  # Business logic in Stockholm
   memorySize: 1024
   timeout: 300  # 5 minutes for AI generation
   stage: ${opt:stage, 'dev'}
   
+  # Enable X-Ray tracing for monitoring
+  tracing:
+    lambda: true
+    apiGateway: true
+  
+  # CloudWatch Logs retention
+  logRetentionInDays: 7
+  
   environment:
     AWS_NODEJS_CONNECTION_REUSE_ENABLED: "1"
+    POWERTOOLS_SERVICE_NAME: webdpro-ai-services
+    LOG_LEVEL: ${opt:logLevel, 'INFO'}
     
     # Cross-Region Configuration
     AWS_S3_REGION: ${env:AWS_S3_REGION, 'eu-north-1'}
@@ -18,11 +28,11 @@ provider:
     AWS_S3_BUCKET_ASSETS: ${env:AWS_S3_BUCKET_ASSETS, 'webdpro-assets-ai-gen'}
     
     AWS_BEDROCK_REGION: ${env:AWS_BEDROCK_REGION, 'us-east-1'}
-    AWS_BEDROCK_MODEL_PRIMARY: ${env:AWS_BEDROCK_MODEL_PRIMARY, 'anthropic.claude-3-5-sonnet-20240620-v1:0'}
-    AWS_BEDROCK_MODEL_FALLBACK_1: ${env:AWS_BEDROCK_MODEL_FALLBACK_1, 'anthropic.claude-3-haiku-20240307-v1:0'}
-    AWS_BEDROCK_MODEL_FALLBACK_2: ${env:AWS_BEDROCK_MODEL_FALLBACK_2, 'amazon.titan-text-express-v1'}
-    AWS_BEDROCK_MODEL_IMAGE: ${env:AWS_BEDROCK_MODEL_IMAGE, 'amazon.titan-image-generator-v1'}
-    AWS_BEDROCK_MODEL_FALLBACK_3: ${env:AWS_BEDROCK_MODEL_FALLBACK_3, 'meta.llama3-70b-instruct-v1:0'}
+    AWS_BEDROCK_MODEL_PRIMARY: ${env:AWS_BEDROCK_MODEL_PRIMARY, 'amazon.nova-pro-v1:0'}
+    AWS_BEDROCK_MODEL_FALLBACK_1: ${env:AWS_BEDROCK_MODEL_FALLBACK_1, 'anthropic.claude-3-5-haiku-20241022-v1:0'}
+    AWS_BEDROCK_MODEL_FALLBACK_2: ${env:AWS_BEDROCK_MODEL_FALLBACK_2, 'anthropic.claude-3-haiku-20240307-v1:0'}
+    AWS_BEDROCK_MODEL_IMAGE: ${env:AWS_BEDROCK_MODEL_IMAGE, 'amazon.titan-image-generator-v2:0'}
+    AWS_BEDROCK_MODEL_FALLBACK_3: ${env:AWS_BEDROCK_MODEL_FALLBACK_3, 'meta.llama3-2-90b-instruct-v1:0'}
     
     AWS_CORE_REGION: ${env:AWS_CORE_REGION, 'eu-north-1'}
 
@@ -51,16 +61,42 @@ provider:
             - "arn:aws:s3:::${env:AWS_S3_BUCKET, 'webdpro-ai-storage'}"
             - "arn:aws:s3:::${env:AWS_S3_BUCKET_WEBSITES, 'webdpro-websites'}"
             - "arn:aws:s3:::${env:AWS_S3_BUCKET_ASSETS, 'webdpro-assets'}"
+        
+        # X-Ray tracing permissions
+        - Effect: Allow
+          Action:
+            - xray:PutTraceSegments
+            - xray:PutTelemetryRecords
+          Resource: "*"
+        
+        # CloudWatch Logs permissions
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+          Resource: "arn:aws:logs:${self:provider.region}:*:*"
 
 functions:
   # AI Website Generation with Cross-Region Support
   generateWebsite:
     handler: src/handlers/generate.generateWebsite
+    memorySize: 2048  # Increased for AI processing
+    timeout: 300
     events:
       - http:
           path: /ai/generate
           method: post
-          cors: true
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+            allowCredentials: false
     environment:
       FUNCTION_NAME: generateWebsite
       CLOUDFRONT_DOMAIN: !GetAtt WebsitesCDN.DomainName
@@ -68,30 +104,93 @@ functions:
   # Individual Pipeline Steps
   generateSpec:
     handler: src/handlers/pipeline.generateSpec
+    memorySize: 1536
+    timeout: 120
     events:
       - http:
           path: /ai/spec
           method: post
-          cors: true
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+            allowCredentials: false
 
   generateCode:
     handler: src/handlers/pipeline.generateCode
+    memorySize: 1536
+    timeout: 120
     events:
       - http:
           path: /ai/code
           method: post
-          cors: true
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+            allowCredentials: false
 
   generateImages:
     handler: src/handlers/pipeline.generateImages
+    memorySize: 1536
+    timeout: 180
     events:
       - http:
           path: /ai/images
           method: post
-          cors: true
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+            allowCredentials: false
 
 resources:
   Resources:
+    # CloudWatch Alarm for Lambda errors
+    LambdaErrorAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Properties:
+        AlarmName: ${self:service}-${self:provider.stage}-lambda-errors
+        AlarmDescription: Alert on Lambda function errors
+        MetricName: Errors
+        Namespace: AWS/Lambda
+        Statistic: Sum
+        Period: 300
+        EvaluationPeriods: 1
+        Threshold: 5
+        ComparisonOperator: GreaterThanThreshold
+        TreatMissingData: notBreaching
+    
+    # CloudWatch Alarm for Lambda throttles
+    LambdaThrottleAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Properties:
+        AlarmName: ${self:service}-${self:provider.stage}-lambda-throttles
+        AlarmDescription: Alert on Lambda function throttles
+        MetricName: Throttles
+        Namespace: AWS/Lambda
+        Statistic: Sum
+        Period: 300
+        EvaluationPeriods: 1
+        Threshold: 10
+        ComparisonOperator: GreaterThanThreshold
+        TreatMissingData: notBreaching
+    
     # S3 Buckets in eu-north-1 (Stockholm)
     AIStorageBucket:
       Type: AWS::S3::Bucket

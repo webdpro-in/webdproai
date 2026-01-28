@@ -10,6 +10,7 @@ import { CloudFrontClient, CreateInvalidationCommand } from '@aws-sdk/client-clo
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 import { v4 as uuidv4 } from 'uuid';
 import { aiClient } from '../lib/ai-client';
+import { logger } from '../lib/logger';
 
 const dynamoClient = new DynamoDBClient({ region: process.env.AWS_REGION || 'eu-north-1' });
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
@@ -25,6 +26,7 @@ const EVENTS_TOPIC_ARN = process.env.EVENTS_TOPIC_ARN;
 interface APIGatewayEvent {
    pathParameters?: { storeId?: string };
    body: string | null;
+   headers?: { Authorization?: string; authorization?: string; [key: string]: string | undefined };
    requestContext?: { authorizer?: { claims?: { sub: string; 'custom:tenant_id'?: string } } };
 }
 
@@ -34,6 +36,8 @@ const response = (statusCode: number, body: any) => ({
    headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token',
       'Access-Control-Allow-Credentials': true,
    },
    body: JSON.stringify(body),
@@ -41,7 +45,25 @@ const response = (statusCode: number, body: any) => ({
 
 // Helper: Get tenant ID from token
 const getTenantId = (event: APIGatewayEvent): string | null => {
-   return event.requestContext?.authorizer?.claims?.['custom:tenant_id'] || null;
+   // Try to get from authorizer first (if configured)
+   const authorizerTenantId = event.requestContext?.authorizer?.claims?.['custom:tenant_id'];
+   if (authorizerTenantId) {
+      return authorizerTenantId;
+   }
+
+   // Fallback: decode JWT from Authorization header
+   try {
+      const authHeader = event.headers?.Authorization || event.headers?.authorization;
+      if (!authHeader) return null;
+
+      const token = authHeader.replace('Bearer ', '');
+      const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+      
+      return payload['custom:tenant_id'] || payload.sub || null;
+   } catch (error) {
+      console.error('Error decoding token:', error);
+      return null;
+   }
 };
 
 /**
@@ -55,6 +77,7 @@ export const generateStore = async (event: APIGatewayEvent) => {
    try {
       tenantId = getTenantId(event);
       if (!tenantId) {
+         logger.warn('generateStore', 'Unauthorized access attempt - tenant not found');
          return response(401, { error: 'Unauthorized - tenant not found' });
       }
 
@@ -62,11 +85,18 @@ export const generateStore = async (event: APIGatewayEvent) => {
       const { prompt, storeType, language = 'en', currency = 'INR' } = body;
 
       if (!prompt) {
+         logger.warn('generateStore', 'Missing prompt in request', { tenantId });
          return response(400, { error: 'Prompt is required' });
       }
 
       storeId = uuidv4();
       const createdAt = new Date().toISOString();
+
+      logger.info('generateStore', 'Starting store generation', {
+         tenantId,
+         storeId,
+         storeType: storeType || 'general',
+      });
 
       // Create store record (DRAFT status)
       const store = {
@@ -84,70 +114,111 @@ export const generateStore = async (event: APIGatewayEvent) => {
          updated_at: createdAt,
       };
 
-      await docClient.send(new PutCommand({
-         TableName: STORES_TABLE,
-         Item: store,
-      }));
+      try {
+         await docClient.send(new PutCommand({
+            TableName: STORES_TABLE,
+            Item: store,
+         }));
+         logger.info('generateStore', 'Store record created in DynamoDB', { storeId, tenantId });
+      } catch (dbError: any) {
+         logger.error('generateStore', 'Failed to create store record in DynamoDB', dbError, {
+            tableName: STORES_TABLE,
+            storeId,
+            tenantId,
+         });
+         return response(500, { error: 'Failed to create store record' });
+      }
 
       // Generate website using AI
-      console.log(`[Store ${storeId}] Starting AI generation...`);
+      logger.info('generateStore', 'Calling AI service for website generation', { storeId });
 
-      const aiResponse = await aiClient.generateWebsite({
-         input: {
-            businessName: extractBusinessName(prompt),
-            businessType: storeType || 'general',
-            location: 'India',
-            description: prompt,
-            language,
-         },
-         tenantId,
-         storeId
-      });
+      let aiResponse;
+      try {
+         aiResponse = await aiClient.generateWebsite({
+            input: {
+               businessName: extractBusinessName(prompt),
+               businessType: storeType || 'general',
+               location: 'India',
+               description: prompt,
+               language,
+            },
+            tenantId,
+            storeId
+         });
+      } catch (aiError: any) {
+         logger.error('generateStore', 'AI service call failed', aiError, { storeId, tenantId });
+         throw new Error(aiError.message || 'AI generation failed');
+      }
 
       if (!aiResponse.success || !aiResponse.data) {
+         logger.error('generateStore', 'AI generation returned unsuccessful response', undefined, {
+            storeId,
+            tenantId,
+            error: aiResponse.error,
+         });
          throw new Error(aiResponse.error || 'AI generation failed');
       }
 
       const website = aiResponse.data;
-      console.log(`[Store ${storeId}] AI generation complete`);
+      logger.info('generateStore', 'AI generation complete', { storeId });
 
       // Upload to S3 (draft folder)
       const draftPath = `drafts/${tenantId}/${storeId}`;
 
-      await Promise.all([
-         s3Client.send(new PutObjectCommand({
-            Bucket: S3_BUCKET,
-            Key: `${draftPath}/index.html`,
-            Body: website.html,
-            ContentType: 'text/html',
-         })),
-         s3Client.send(new PutObjectCommand({
-            Bucket: S3_BUCKET,
-            Key: `${draftPath}/styles.css`,
-            Body: website.css,
-            ContentType: 'text/css',
-         })),
-         s3Client.send(new PutObjectCommand({
-            Bucket: S3_BUCKET,
-            Key: `${draftPath}/config.json`,
-            Body: JSON.stringify(website.config, null, 2),
-            ContentType: 'application/json',
-         })),
-      ]);
+      try {
+         await Promise.all([
+            s3Client.send(new PutObjectCommand({
+               Bucket: S3_BUCKET,
+               Key: `${draftPath}/index.html`,
+               Body: website.html,
+               ContentType: 'text/html',
+            })),
+            s3Client.send(new PutObjectCommand({
+               Bucket: S3_BUCKET,
+               Key: `${draftPath}/styles.css`,
+               Body: website.css,
+               ContentType: 'text/css',
+            })),
+            s3Client.send(new PutObjectCommand({
+               Bucket: S3_BUCKET,
+               Key: `${draftPath}/config.json`,
+               Body: JSON.stringify(website.config, null, 2),
+               ContentType: 'application/json',
+            })),
+         ]);
+         logger.info('generateStore', 'Files uploaded to S3', { storeId, bucket: S3_BUCKET, path: draftPath });
+      } catch (s3Error: any) {
+         logger.error('generateStore', 'S3 upload failed', s3Error, {
+            storeId,
+            tenantId,
+            bucket: S3_BUCKET,
+            path: draftPath,
+         });
+         return response(500, { error: 'Failed to upload website files' });
+      }
 
       // Update store status
-      await docClient.send(new UpdateCommand({
-         TableName: STORES_TABLE,
-         Key: { tenant_id: tenantId, store_id: storeId },
-         UpdateExpression: 'SET #status = :status, config = :config, preview_url = :preview, updated_at = :time',
-         ExpressionAttributeNames: { '#status': 'status' },
-         ExpressionAttributeValues: {
-            ':status': 'DRAFT',
-            ':config': website.config,
-            ':preview': `https://${S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${draftPath}/index.html`,
-            ':time': new Date().toISOString(),
-         },
-      }));
+      try {
+         await docClient.send(new UpdateCommand({
+            TableName: STORES_TABLE,
+            Key: { tenant_id: tenantId, store_id: storeId },
+            UpdateExpression: 'SET #status = :status, config = :config, preview_url = :preview, updated_at = :time',
+            ExpressionAttributeNames: { '#status': 'status' },
+            ExpressionAttributeValues: {
+               ':status': 'DRAFT',
+               ':config': website.config,
+               ':preview': `https://${S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${draftPath}/index.html`,
+               ':time': new Date().toISOString(),
+            },
+         }));
+         logger.info('generateStore', 'Store status updated to DRAFT', { storeId });
+      } catch (updateError: any) {
+         logger.error('generateStore', 'Failed to update store status', updateError, {
+            storeId,
+            tenantId,
+            tableName: STORES_TABLE,
+         });
+      }
 
       // Publish STORE_CREATED event
       await publishEvent('STORE_CREATED', {
@@ -163,7 +234,7 @@ export const generateStore = async (event: APIGatewayEvent) => {
       try {
          const productSection = website.config.sections.find((s: any) => s.type === 'products');
          if (productSection && productSection.content && Array.isArray(productSection.content.products)) {
-            console.log(`[Store ${storeId}] Auto-populating ${productSection.content.products.length} products...`);
+            logger.info('generateStore', `Auto-populating ${productSection.content.products.length} products`, { storeId });
 
             const productPromises = productSection.content.products.map((p: any) => {
                const productId = uuidv4();
@@ -197,10 +268,10 @@ export const generateStore = async (event: APIGatewayEvent) => {
             });
 
             await Promise.all(productPromises);
-            console.log(`[Store ${storeId}] Products populated successfully.`);
+            logger.info('generateStore', 'Products populated successfully', { storeId });
          }
-      } catch (inventoryError) {
-         console.error('Failed to populate inventory:', inventoryError);
+      } catch (inventoryError: any) {
+         logger.error('generateStore', 'Failed to populate inventory', inventoryError, { storeId });
          // Do not fail the store generation, just log error
       }
 
@@ -215,22 +286,24 @@ export const generateStore = async (event: APIGatewayEvent) => {
          },
       });
    } catch (error: any) {
-      console.error('Error generating store:', error);
+      logger.error('generateStore', 'Store generation failed', error, { storeId, tenantId });
 
       // Update store status to ERROR
-      try {
-         await docClient.send(new UpdateCommand({
-            TableName: STORES_TABLE,
-            Key: { tenant_id: tenantId || 'unknown', store_id: storeId || 'unknown' },
-            UpdateExpression: 'SET #status = :status, updated_at = :time',
-            ExpressionAttributeNames: { '#status': 'status' },
-            ExpressionAttributeValues: {
-               ':status': 'ERROR',
-               ':time': new Date().toISOString(),
-            },
-         }));
-      } catch (updateError) {
-         console.error('Failed to update store status to ERROR:', updateError);
+      if (tenantId && storeId) {
+         try {
+            await docClient.send(new UpdateCommand({
+               TableName: STORES_TABLE,
+               Key: { tenant_id: tenantId, store_id: storeId },
+               UpdateExpression: 'SET #status = :status, updated_at = :time',
+               ExpressionAttributeNames: { '#status': 'status' },
+               ExpressionAttributeValues: {
+                  ':status': 'ERROR',
+                  ':time': new Date().toISOString(),
+               },
+            }));
+         } catch (updateError: any) {
+            logger.error('generateStore', 'Failed to update store status to ERROR', updateError);
+         }
       }
 
       return response(500, { error: error.message || 'Failed to generate store' });
@@ -245,8 +318,11 @@ export const getStores = async (event: APIGatewayEvent) => {
    try {
       const tenantId = getTenantId(event);
       if (!tenantId) {
+         logger.warn('getStores', 'Unauthorized access attempt');
          return response(401, { error: 'Unauthorized' });
       }
+
+      logger.info('getStores', 'Fetching stores for tenant', { tenantId });
 
       const result = await docClient.send(new QueryCommand({
          TableName: STORES_TABLE,
@@ -256,13 +332,18 @@ export const getStores = async (event: APIGatewayEvent) => {
          },
       }));
 
+      logger.info('getStores', 'Stores fetched successfully', {
+         tenantId,
+         count: result.Count || 0,
+      });
+
       return response(200, {
          success: true,
          stores: result.Items || [],
          count: result.Count || 0,
       });
-   } catch (error) {
-      console.error('Error fetching stores:', error);
+   } catch (error: any) {
+      logger.error('getStores', 'Failed to fetch stores', error);
       return response(500, { error: 'Failed to fetch stores' });
    }
 };
@@ -277,8 +358,11 @@ export const getStore = async (event: APIGatewayEvent) => {
       const storeId = event.pathParameters?.storeId;
 
       if (!tenantId || !storeId) {
+         logger.warn('getStore', 'Missing tenant ID or store ID', { tenantId, storeId });
          return response(400, { error: 'Store ID required' });
       }
+
+      logger.info('getStore', 'Fetching store details', { tenantId, storeId });
 
       const result = await docClient.send(new GetCommand({
          TableName: STORES_TABLE,
@@ -286,15 +370,18 @@ export const getStore = async (event: APIGatewayEvent) => {
       }));
 
       if (!result.Item) {
+         logger.warn('getStore', 'Store not found', { tenantId, storeId });
          return response(404, { error: 'Store not found' });
       }
+
+      logger.info('getStore', 'Store fetched successfully', { tenantId, storeId });
 
       return response(200, {
          success: true,
          store: result.Item,
       });
-   } catch (error) {
-      console.error('Error fetching store:', error);
+   } catch (error: any) {
+      logger.error('getStore', 'Failed to fetch store', error);
       return response(500, { error: 'Failed to fetch store' });
    }
 };
@@ -310,8 +397,11 @@ export const publishStore = async (event: APIGatewayEvent) => {
       const body = JSON.parse(event.body || '{}');
 
       if (!tenantId || !storeId) {
+         logger.warn('publishStore', 'Missing tenant ID or store ID', { tenantId, storeId });
          return response(400, { error: 'Store ID required' });
       }
+
+      logger.info('publishStore', 'Publishing store', { tenantId, storeId });
 
       // Get store
       const storeResult = await docClient.send(new GetCommand({
@@ -321,6 +411,7 @@ export const publishStore = async (event: APIGatewayEvent) => {
 
       const store = storeResult.Item;
       if (!store) {
+         logger.warn('publishStore', 'Store not found', { tenantId, storeId });
          return response(404, { error: 'Store not found' });
       }
 
@@ -338,6 +429,7 @@ export const publishStore = async (event: APIGatewayEvent) => {
       if (!isSubscribed) {
          // Allow if store was previously paid for (legacy) or if doing one-time payment flow
          if (store.status !== 'PAID') {
+            logger.warn('publishStore', 'Subscription required', { tenantId, storeId });
             return response(402, {
                error: 'Active subscription required to publish',
                requires_payment: true,
@@ -354,13 +446,28 @@ export const publishStore = async (event: APIGatewayEvent) => {
       const prodPath = `stores/${storeId}`;
       const files = ['index.html', 'styles.css', 'config.json'];
 
-      await Promise.all(files.map(file =>
-         s3Client.send(new CopyObjectCommand({
-            Bucket: S3_BUCKET,
-            CopySource: `${S3_BUCKET}/${draftPath}/${file}`,
-            Key: `${prodPath}/${file}`,
-         }))
-      ));
+      try {
+         await Promise.all(files.map(file =>
+            s3Client.send(new CopyObjectCommand({
+               Bucket: S3_BUCKET,
+               CopySource: `${S3_BUCKET}/${draftPath}/${file}`,
+               Key: `${prodPath}/${file}`,
+            }))
+         ));
+         logger.info('publishStore', 'Files copied to production', {
+            storeId,
+            bucket: S3_BUCKET,
+            from: draftPath,
+            to: prodPath,
+         });
+      } catch (s3Error: any) {
+         logger.error('publishStore', 'S3 copy failed', s3Error, {
+            storeId,
+            tenantId,
+            bucket: S3_BUCKET,
+         });
+         return response(500, { error: 'Failed to publish store files' });
+      }
 
       // Generate subdomain
       const subdomain = body.subdomain || `store-${storeId.substring(0, 8)}`;
@@ -380,6 +487,12 @@ export const publishStore = async (event: APIGatewayEvent) => {
          },
       }));
 
+      logger.info('publishStore', 'Store published successfully', {
+         storeId,
+         tenantId,
+         liveUrl,
+      });
+
       // Invalidate CloudFront cache
       if (CLOUDFRONT_DIST_ID) {
          try {
@@ -393,8 +506,9 @@ export const publishStore = async (event: APIGatewayEvent) => {
                   CallerReference: `publish-${storeId}-${Date.now()}`,
                },
             }));
-         } catch (cfError) {
-            console.warn('CloudFront invalidation failed:', cfError);
+            logger.info('publishStore', 'CloudFront cache invalidated', { storeId });
+         } catch (cfError: any) {
+            logger.warn('publishStore', 'CloudFront invalidation failed', { error: cfError.message });
          }
       }
 
@@ -409,7 +523,7 @@ export const publishStore = async (event: APIGatewayEvent) => {
          },
       });
    } catch (error: any) {
-      console.error('Error publishing store:', error);
+      logger.error('publishStore', 'Failed to publish store', error);
       return response(500, { error: error.message || 'Failed to publish store' });
    }
 };
@@ -425,8 +539,11 @@ export const updateStore = async (event: APIGatewayEvent) => {
       const body = JSON.parse(event.body || '{}');
 
       if (!tenantId || !storeId) {
+         logger.warn('updateStore', 'Missing tenant ID or store ID', { tenantId, storeId });
          return response(400, { error: 'Store ID required' });
       }
+
+      logger.info('updateStore', 'Updating store', { tenantId, storeId });
 
       // Get current store
       const storeResult = await docClient.send(new GetCommand({
@@ -436,11 +553,13 @@ export const updateStore = async (event: APIGatewayEvent) => {
 
       const store = storeResult.Item;
       if (!store) {
+         logger.warn('updateStore', 'Store not found', { tenantId, storeId });
          return response(404, { error: 'Store not found' });
       }
 
       // If published, require republish payment
       if (store.status === 'PUBLISHED') {
+         logger.warn('updateStore', 'Cannot update published store', { tenantId, storeId });
          return response(400, {
             error: 'Published stores require republish. This will create a new version.',
             requires_payment: true,
@@ -472,12 +591,14 @@ export const updateStore = async (event: APIGatewayEvent) => {
          ExpressionAttributeNames: expressionNames,
       }));
 
+      logger.info('updateStore', 'Store updated successfully', { tenantId, storeId });
+
       return response(200, {
          success: true,
          message: 'Store updated successfully',
       });
-   } catch (error) {
-      console.error('Error updating store:', error);
+   } catch (error: any) {
+      logger.error('updateStore', 'Failed to update store', error);
       return response(500, { error: 'Failed to update store' });
    }
 };

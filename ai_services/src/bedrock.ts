@@ -1,5 +1,5 @@
-import { BedrockRuntimeClient, InvokeModelCommand, InvokeModelWithResponseStreamCommand } from '@aws-sdk/client-bedrock-runtime';
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
 /**
  * Cross-Region Bedrock Client
@@ -34,19 +34,31 @@ export class CrossRegionBedrockClient {
 
   constructor() {
     // Bedrock client for AI operations in us-east-1
+    // Uses default AWS credentials from Lambda execution role
     this.bedrockClient = new BedrockRuntimeClient({
       region: this.config.bedrock.region,
       maxAttempts: 3,
-      retryMode: 'adaptive'
+      retryMode: 'adaptive',
+      // Lambda execution role will provide credentials automatically
     });
 
     // S3 client for storage operations in eu-north-1
     this.s3Client = new S3Client({
       region: this.config.s3.region,
       maxAttempts: 3,
-      retryMode: 'adaptive'
+      retryMode: 'adaptive',
     });
 
+    console.log('[Bedrock Client] Initialized with configuration:', {
+      bedrockRegion: this.config.bedrock.region,
+      s3Region: this.config.s3.region,
+      primaryModel: this.config.bedrock.models.primary,
+      fallbackModels: [
+        this.config.bedrock.models.fallback1,
+        this.config.bedrock.models.fallback2,
+        this.config.bedrock.models.fallback3,
+      ],
+    });
     console.log(`🌍 Cross-Region Setup: Bedrock (${this.config.bedrock.region}) + S3 (${this.config.s3.region})`);
   }
 
@@ -56,28 +68,28 @@ export class CrossRegionBedrockClient {
   async generateWithFallback(prompt: string, options: GenerationOptions = {}): Promise<GenerationResult> {
     const fallbackChain = [
       { 
-        name: 'claude-3.5-sonnet',
+        name: 'amazon-nova-pro',
         modelId: this.config.bedrock.models.primary,
-        cost: 0.003,
+        cost: 0.0008,
         timeout: 120000,
         quality: 'premium'
       },
       {
-        name: 'claude-3-haiku',
+        name: 'claude-3.5-haiku',
         modelId: this.config.bedrock.models.fallback1,
+        cost: 0.001,
+        timeout: 60000,
+        quality: 'fast'
+      },
+      {
+        name: 'claude-3-haiku',
+        modelId: this.config.bedrock.models.fallback2,
         cost: 0.00025,
         timeout: 60000,
         quality: 'fast'
       },
       {
-        name: 'amazon-titan-express',
-        modelId: this.config.bedrock.models.fallback2,
-        cost: 0.0008,
-        timeout: 90000,
-        quality: 'balanced'
-      },
-      {
-        name: 'meta-llama3-70b',
+        name: 'meta-llama3.2-90b',
         modelId: this.config.bedrock.models.fallback3,
         cost: 0.00195,
         timeout: 180000,
@@ -177,6 +189,28 @@ export class CrossRegionBedrockClient {
    * Prepare input for different model types
    */
   private prepareModelInput(modelId: string, prompt: string, options: GenerationOptions): any {
+    // Amazon Nova models (new format)
+    if (modelId.includes('nova')) {
+      return {
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                text: prompt
+              }
+            ]
+          }
+        ],
+        inferenceConfig: {
+          max_new_tokens: options.maxTokens || 4000,
+          temperature: options.temperature || 0.7,
+          top_p: 0.9
+        }
+      };
+    }
+    
+    // Anthropic Claude models
     if (modelId.includes('claude')) {
       return {
         anthropic_version: "bedrock-2023-05-31",
@@ -191,7 +225,8 @@ export class CrossRegionBedrockClient {
       };
     }
     
-    if (modelId.includes('titan')) {
+    // Amazon Titan models
+    if (modelId.includes('titan') && !modelId.includes('image')) {
       return {
         inputText: prompt,
         textGenerationConfig: {
@@ -202,6 +237,7 @@ export class CrossRegionBedrockClient {
       };
     }
     
+    // Meta Llama models
     if (modelId.includes('llama')) {
       return {
         prompt,
@@ -221,13 +257,24 @@ export class CrossRegionBedrockClient {
   private parseModelResponse(modelId: string, responseBody: any): GenerationResult {
     let content = '';
     
-    if (modelId.includes('claude')) {
+    // Amazon Nova models
+    if (modelId.includes('nova')) {
+      content = responseBody.output?.message?.content?.[0]?.text || '';
+    }
+    // Anthropic Claude models
+    else if (modelId.includes('claude')) {
       content = responseBody.content?.[0]?.text || '';
-    } else if (modelId.includes('titan')) {
+    }
+    // Amazon Titan models
+    else if (modelId.includes('titan')) {
       content = responseBody.results?.[0]?.outputText || '';
-    } else if (modelId.includes('llama')) {
+    }
+    // Meta Llama models
+    else if (modelId.includes('llama')) {
       content = responseBody.generation || '';
-    } else {
+    }
+    // Default
+    else {
       content = responseBody.text || responseBody.content || '';
     }
 
@@ -241,7 +288,7 @@ export class CrossRegionBedrockClient {
   /**
    * Rule-based template generation (never fails)
    */
-  private async generateFromTemplate(prompt: string, options: GenerationOptions): Promise<GenerationResult> {
+  private async generateFromTemplate(prompt: string, _options: GenerationOptions): Promise<GenerationResult> {
     console.log('🔧 Using rule-based template generation');
     
     // Simple template-based generation
@@ -293,14 +340,15 @@ export class CrossRegionBedrockClient {
       taskType: "TEXT_IMAGE",
       textToImageParams: {
         text: prompt,
-        negativeText: options.negativePrompt || "blurry, low quality, distorted",
+        negativeText: options.negativePrompt || "blurry, low quality, distorted, watermark, text",
       },
       imageGenerationConfig: {
         numberOfImages: 1,
         height: options.height || 1024,
         width: options.width || 1024,
         cfgScale: options.cfgScale || 8.0,
-        seed: options.seed || Math.floor(Math.random() * 1000000)
+        seed: options.seed || Math.floor(Math.random() * 1000000),
+        quality: "standard"
       }
     };
 
@@ -319,7 +367,7 @@ export class CrossRegionBedrockClient {
     const imageBuffer = Buffer.from(base64Image, 'base64');
     
     // Store in S3
-    const imageKey = `images/${Date.now()}-${Math.random().toString(36).substr(2, 9)}.png`;
+    const imageKey = `images/${Date.now()}-${Math.random().toString(36).substring(2, 11)}.png`;
     
     const putCommand = new PutObjectCommand({
       Bucket: this.config.s3.buckets.assets,

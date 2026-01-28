@@ -2,7 +2,7 @@ service: webdpro-payments
 
 provider:
   name: aws
-  runtime: nodejs18.x
+  runtime: nodejs20.x
   region: eu-north-1
   memorySize: 256
   timeout: 30
@@ -22,9 +22,10 @@ provider:
             - dynamodb:PutItem
             - dynamodb:UpdateItem
           Resource:
-            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE_PREFIX}-tenants" # Store linked account IDs
-            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE_PREFIX}-orders" # Update order status
-            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE_PREFIX}-payments" # Record payments
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE_PREFIX}-tenants"
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE_PREFIX}-orders"
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE_PREFIX}-orders/index/*"
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE_PREFIX}-payments"
 
 functions:
   # Merchant Onboarding (Linked Accounts)
@@ -34,7 +35,16 @@ functions:
       - http:
           path: /payments/onboard
           method: post
-          cors: true
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+            allowCredentials: false
 
   # Store Checkout (Split Payments)
   createStoreOrder:
@@ -43,7 +53,16 @@ functions:
       - http:
           path: /payments/checkout
           method: post
-          cors: true
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+            allowCredentials: false
 
   # Platform Subscription (Merchant pays WebDPro)
   createSubscription:
@@ -52,7 +71,16 @@ functions:
       - http:
           path: /payments/subscription
           method: post
-          cors: true
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+            allowCredentials: false
 
   # Webhooks
   handleWebhook:
@@ -61,7 +89,16 @@ functions:
       - http:
           path: /payments/webhook
           method: post
-          cors: true
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+            allowCredentials: false
           
   handleSubscriptionWebhook:
     handler: src/subscription.handleSubscriptionWebhook
@@ -69,7 +106,16 @@ functions:
       - http:
           path: /payments/webhook/subscription
           method: post
-          cors: true
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+            allowCredentials: false
 
 plugins:
   - serverless-plugin-typescript

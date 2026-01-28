@@ -8,9 +8,9 @@ import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedroc
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { SiteSpec } from "../schemas";
 
-const bedrock = new BedrockRuntimeClient({ region: process.env.AWS_REGION || "eu-north-1" });
-const s3 = new S3Client({ region: process.env.AWS_REGION || "eu-north-1" });
-const S3_BUCKET = process.env.S3_BUCKET || "webdpro-ai";
+const bedrock = new BedrockRuntimeClient({ region: process.env.AWS_BEDROCK_REGION || "us-east-1" });
+const s3 = new S3Client({ region: process.env.AWS_S3_REGION || "eu-north-1" });
+const S3_BUCKET = process.env.AWS_S3_BUCKET || "webdpro-ai-storage";
 
 export async function generateImages(spec: SiteSpec, tenantId: string, storeId: string): Promise<Record<string, string>> {
    const imageUrls: Record<string, string> = {};
@@ -39,7 +39,7 @@ export async function generateImages(spec: SiteSpec, tenantId: string, storeId: 
          }));
 
          // Generate Public URL
-         const url = `https://${S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${imageKey}`;
+         const url = `https://${S3_BUCKET}.s3.${process.env.AWS_S3_REGION || 'eu-north-1'}.amazonaws.com/${imageKey}`;
          imageUrls[section.id] = url;
 
       } catch (error) {

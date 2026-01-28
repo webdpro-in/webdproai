@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { exchangeCodeForTokens } from "@/lib/auth";
 import { Loader2 } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 function CallbackContent() {
    const router = useRouter();
    const searchParams = useSearchParams();

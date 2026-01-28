@@ -5,7 +5,11 @@
    "workspaces": [
       "frontend",
       "backend",
-      "ai_services"
+      "ai_services",
+      "delivery",
+      "orders",
+      "inventory",
+      "payments"
    ],
    "scripts": {
       "dev:frontend": "npm run dev --workspace=frontend",

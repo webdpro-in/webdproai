@@ -19,7 +19,7 @@ const STATUS_FLOW = {
    PENDING: ['PICKED_UP'],
    PICKED_UP: ['IN_TRANSIT'],
    IN_TRANSIT: ['DELIVERED', 'FAILED'],
-   DELIVERED: [],
+   DELIVERED: [] as string[],
    FAILED: ['PENDING'], // Can retry
 };
 

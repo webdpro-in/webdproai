@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { ArrowRight, Loader2, Mail, Smartphone, Check } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { getGoogleOAuthUrl } from "@/lib/auth";
 
 // Placeholder for Auth SDK (we will implement/mock this logic)
 const signIn = async (identifier: string) => {
@@ -81,12 +82,7 @@ export default function LoginPage() {
                   {/* Google Login Button */}
                   <button
                      onClick={() => {
-                        const domain = process.env.NEXT_PUBLIC_COGNITO_DOMAIN
-                           ? `https://${process.env.NEXT_PUBLIC_COGNITO_DOMAIN}.auth.eu-north-1.amazoncognito.com`
-                           : "https://webdpro-auth-dev-kb82.auth.eu-north-1.amazoncognito.com";
-                        const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID || "nijch3h85e0rd6l4a3ppmo25";
-                        const redirectUri = `${window.location.origin}/auth/callback`;
-                        const cognitoUrl = `${domain}/oauth2/authorize?identity_provider=Google&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&client_id=${clientId}&scope=email+openid+profile`;
+                        const cognitoUrl = getGoogleOAuthUrl();
                         console.log("Redirecting to Cognito:", cognitoUrl);
                         window.location.href = cognitoUrl;
                      }}

@@ -55,7 +55,10 @@ export async function registerUser(phone: string, name: string): Promise<AuthRes
 export function getGoogleOAuthUrl(): string {
    const cognitoDomain = process.env.NEXT_PUBLIC_COGNITO_DOMAIN;
    const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
-   const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`;
+   // Dynamic redirect URI based on current window location
+   const origin = typeof window !== 'undefined' ? window.location.origin : process.env.NEXT_PUBLIC_APP_URL!;
+   const redirectUri = `${origin}/auth/callback`;
+   console.log("Generating Auth URL with redirect_uri:", redirectUri);
    const region = process.env.NEXT_PUBLIC_COGNITO_REGION || 'eu-north-1';
 
    const params = new URLSearchParams({

@@ -603,10 +603,12 @@ resources:
         CallbackURLs:
           - http://localhost:3000/auth/callback
           - https://d3qhkomcxcxmtl.cloudfront.net/auth/callback
+          - https://ai-gamma-rose.vercel.app/auth/callback
           - ${env:COGNITO_CALLBACK_URL, 'http://localhost:3000/auth/callback'}
         LogoutURLs:
           - http://localhost:3000
           - https://d3qhkomcxcxmtl.cloudfront.net
+          - https://ai-gamma-rose.vercel.app
           - ${env:COGNITO_LOGOUT_URL, 'http://localhost:3000'}
         ExplicitAuthFlows:
           - ALLOW_CUSTOM_AUTH

@@ -11,11 +11,11 @@
 | **Inventory** | https://e4wbcrjlc7.execute-api.eu-north-1.amazonaws.com/dev | ✅ Live |
 | **Payments** | https://0mxwvl3n6i.execute-api.eu-north-1.amazonaws.com/dev | ✅ Live |
 
-### Frontend (🚀 READY TO DEPLOY)
+### Frontend (🔄 DEPLOYING)
 
 | Environment | URL | Status |
 |-------------|-----|--------|
-| **Production** | `https://main.xxxxxx.amplifyapp.com` | 🚀 Pending deployment |
+| **Production** | `https://main.xxxxxx.amplifyapp.com` | 🔄 Building (monorepo config fixed) |
 | **Local Dev** | http://localhost:3000 | ✅ Available |
 
 ### Infrastructure

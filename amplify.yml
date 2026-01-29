@@ -5,7 +5,7 @@ applications:
       phases:
         preBuild:
           commands:
-            - npm ci --legacy-peer-deps
+            - npm install
         build:
           commands:
             - npm run build
@@ -16,15 +16,3 @@ applications:
       cache:
         paths:
           - node_modules/**/*
-          - .next/cache/**/*
-      customHeaders:
-        - pattern: '**/*'
-          headers:
-            - key: 'Strict-Transport-Security'
-              value: 'max-age=31536000; includeSubDomains'
-            - key: 'X-Frame-Options'
-              value: 'SAMEORIGIN'
-            - key: 'X-Content-Type-Options'
-              value: 'nosniff'
-            - key: 'X-XSS-Protection'
-              value: '1; mode=block'

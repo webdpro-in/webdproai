@@ -52,8 +52,10 @@ export async function orchestrateSiteGenerationFallback(
             tenantId,
             storeId,
             bedrockRegion: 'none',
-            storageRegion: 'local'
-         }
+            storageRegion: 'local',
+            sectionsGenerated: spec?.sections?.length ?? 0,
+            imagesGenerated: Object.keys(imageUrls).length,
+         },
       };
 
    } catch (error) {
@@ -88,11 +90,18 @@ function generateSpecFallback(input: UserInput): any {
             content: { businessName: input.businessName, location },
             imagePrompt: `Hero image for ${input.businessName}`
          },
-         { 
-            id: 'products', 
-            title: 'Our Products', 
+         {
+            id: 'products',
+            title: 'Our Products',
             type: 'products' as const,
-            content: { description: 'Quality products for your needs' }
+            content: {
+               description: 'Quality products for your needs',
+               products: [
+                  { name: 'Premium Quality', price: 499, description: 'Fresh and high-quality products.', category: 'General' },
+                  { name: 'Best Value', price: 299, description: 'Competitive pricing with excellent value.', category: 'General' },
+                  { name: 'Customer Favorite', price: 799, description: 'Our most popular choice.', category: 'General' },
+               ],
+            },
          },
          { 
             id: 'about', 

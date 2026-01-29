@@ -4,70 +4,103 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Wand2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { apiAI } from "@/lib/api";
 
 export default function CreateSitePage() {
    const router = useRouter();
    const [loading, setLoading] = useState(false);
-   const [step, setStep] = useState(1);
    const [formData, setFormData] = useState({
       businessName: "",
       description: "",
       theme: "modern", // 'modern' | 'playful' | 'elegant'
    });
+   const [error, setError] = useState<string | null>(null);
 
    const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       setLoading(true);
+      setError(null);
 
       try {
-         // Hardcoded tenant for MVP Demo
-         const TENANT_ID = "tenant_123";
+         const prompt = [
+            `Business: ${formData.businessName.trim()}.`,
+            formData.description.trim(),
+            `Style: ${formData.theme}.`
+         ].filter(Boolean).join(" ");
 
-         await apiAI.generateWebsite({
-            businessName: formData.businessName,
-            description: formData.description,
-            themePreference: formData.theme,
-            tenantId: TENANT_ID
+         const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+         const headers: Record<string, string> = { "Content-Type": "application/json" };
+         if (token) headers["Authorization"] = `Bearer ${token}`;
+
+         const res = await fetch("/api/generate", {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+               prompt,
+               storeType: "general",
+               language: "en",
+               currency: "INR"
+            })
          });
 
-         router.push("/dashboard/sites");
-      } catch (error) {
-         console.error("Generation failed:", error);
-         alert("Failed to generate website. Please try again.");
+         const result = await res.json().catch(() => ({ success: false, error: "Invalid response from server." }));
+
+         if (res.status === 401) {
+            router.push("/login");
+            return;
+         }
+
+         if (!result.success || !result.data) {
+            setError((result as { error?: string }).error || "Generation failed.");
+            return;
+         }
+
+         const configString = encodeURIComponent(JSON.stringify(result.data));
+         router.push(`/dashboard/owner/editor/new-site?config=${configString}`);
+      } catch (err) {
+         console.error("Generation failed:", err);
+         setError(err instanceof Error ? err.message : "Failed to generate website. Please try again.");
       } finally {
          setLoading(false);
       }
    };
 
    return (
-      <div className="max-w-3xl mx-auto">
-         <div className="mb-8">
-            <Link href="/dashboard/sites" className="text-sm text-gray-500 hover:text-gray-900 flex items-center mb-4 transition-colors">
-               <ArrowLeft className="h-4 w-4 mr-1" />
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+         <div className="mb-6 sm:mb-8">
+            <Link href="/dashboard/sites" className="text-sm text-gray-500 hover:text-gray-900 flex items-center mb-4 transition-colors w-fit">
+               <ArrowLeft className="h-4 w-4 mr-1 shrink-0" />
                Back to Websites
             </Link>
-            <h1 className="text-3xl font-bold text-gray-900">Create New Website</h1>
-            <p className="text-gray-500 mt-1">Describe your business, and our AI will build a complete store for you.</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Create New Website</h1>
+            <p className="text-gray-500 mt-1 text-sm sm:text-base">Describe your business, and our AI will build a complete store for you.</p>
          </div>
 
          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
             {loading ? (
-               <div className="p-12 flex flex-col items-center justify-center text-center">
+               <div className="p-8 sm:p-12 flex flex-col items-center justify-center text-center">
                   <div className="relative">
-                     <div className="absolute inset-0 bg-indigo-100 rounded-full blur-xl animate-pulse"></div>
-                     <Wand2 className="h-16 w-16 text-indigo-600 relative z-10 animate-pulse" />
+                     <div className="absolute inset-0 bg-indigo-100 rounded-full blur-xl animate-pulse" />
+                     <Wand2 className="h-14 w-14 sm:h-16 sm:w-16 text-indigo-600 relative z-10 animate-pulse" />
                   </div>
-                  <h3 className="mt-6 text-xl font-bold text-gray-900">Generating your website...</h3>
-                  <p className="text-gray-500 mt-2 max-w-sm">
-                     Please wait while we design your layout, write copy, and generate product images.
+                  <h3 className="mt-6 text-lg sm:text-xl font-bold text-gray-900">Generating your website…</h3>
+                  <p className="text-gray-500 mt-2 max-w-sm text-sm sm:text-base">
+                     Designing layout, copy, and visuals. This usually takes a few seconds.
                   </p>
-                  <div className="w-64 bg-gray-100 rounded-full h-2 mt-8 overflow-hidden">
-                     <div className="bg-indigo-600 h-2 rounded-full animate-progress-indeterminate"></div>
+                  <div className="w-full max-w-xs sm:w-64 bg-gray-100 rounded-full h-2 mt-8 overflow-hidden">
+                     <div className="bg-indigo-600 h-2 rounded-full w-1/4 animate-progress-indeterminate" />
                   </div>
                </div>
             ) : (
-               <form onSubmit={handleSubmit} className="p-8 space-y-8">
+               <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-6 sm:space-y-8">
+                  {error && (
+                     <div className="p-4 rounded-lg bg-red-50 border border-red-200 space-y-1">
+                        <p className="text-red-700 text-sm font-medium">{error}</p>
+                        <p className="text-red-600 text-xs">
+                           Log in first, then try again.{" "}
+                           <a href="/api/health" target="_blank" rel="noopener noreferrer" className="underline">Check backend</a>.
+                        </p>
+                     </div>
+                  )}
 
                   {/* Business Name */}
                   <div>
@@ -135,9 +168,9 @@ export default function CreateSitePage() {
                   <div className="pt-6 border-t border-gray-50">
                      <button
                         type="submit"
-                        className="w-full flex justify-center items-center py-4 px-6 border border-transparent rounded-xl shadow-lg text-base font-bold text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform active:scale-[0.99]"
+                        className="w-full flex justify-center items-center py-4 px-6 border border-transparent rounded-xl shadow-lg text-base font-bold text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform active:scale-[0.99] touch-manipulation"
                      >
-                        <Wand2 className="h-5 w-5 mr-2" />
+                        <Wand2 className="h-5 w-5 mr-2 shrink-0" />
                         Generate Website
                      </button>
                   </div>

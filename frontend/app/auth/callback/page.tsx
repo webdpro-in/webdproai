@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { exchangeCodeForTokens } from "@/lib/auth";
 import { Loader2 } from "lucide-react";
 
-export default function AuthCallback() {
+function AuthCallbackInner() {
    const router = useRouter();
    const searchParams = useSearchParams();
    const [error, setError] = useState<string | null>(null);
@@ -31,12 +31,10 @@ export default function AuthCallback() {
             const result = await exchangeCodeForTokens(code);
 
             if (result.success && result.tokens && result.user) {
-               // Store tokens
                localStorage.setItem("token", result.tokens.idToken);
                localStorage.setItem("refresh_token", result.tokens.refreshToken);
                localStorage.setItem("user", JSON.stringify(result.user));
 
-               // Redirect based on user role
                if (result.user.role === "BUSINESS_OWNER") {
                   router.push("/dashboard/business");
                } else {
@@ -46,8 +44,8 @@ export default function AuthCallback() {
                setError(result.message || "Authentication failed");
                setTimeout(() => router.push("/login"), 3000);
             }
-         } catch (err: any) {
-            setError(err.message || "An error occurred during authentication");
+         } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : "An error occurred during authentication");
             setTimeout(() => router.push("/login"), 3000);
          }
       };
@@ -80,5 +78,25 @@ export default function AuthCallback() {
             </div>
          </div>
       </div>
+   );
+}
+
+function CallbackFallback() {
+   return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-purple-50">
+         <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-2xl shadow-xl border border-gray-100 text-center">
+            <Loader2 className="mx-auto w-16 h-16 text-indigo-600 animate-spin mb-4" />
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Loading...</h1>
+            <p className="text-gray-600">Please wait...</p>
+         </div>
+      </div>
+   );
+}
+
+export default function AuthCallback() {
+   return (
+      <Suspense fallback={<CallbackFallback />}>
+         <AuthCallbackInner />
+      </Suspense>
    );
 }

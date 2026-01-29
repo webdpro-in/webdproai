@@ -43,7 +43,7 @@ export default function Home() {
                         </span>
                      </h1>
                      <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
-                        WebDPro isn't just a website builder. It generates a full-stack business specific to your needs—payments, inventory, and delivery included.
+                        WebDPro isn&apos;t just a website builder. It generates a full-stack business specific to your needs—payments, inventory, and delivery included.
                      </p>
                   </div>
 

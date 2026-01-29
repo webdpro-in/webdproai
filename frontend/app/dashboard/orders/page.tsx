@@ -1,25 +1,40 @@
 "use client";
 
-import { Search, Filter, Eye, Loader2 } from "lucide-react";
+import { Search, Filter, Eye, Loader2, AlertCircle } from "lucide-react";
 import { useState, useEffect } from "react";
-import { apiOrders } from "@/lib/api";
+import { apiOrders, apiStores } from "@/lib/api";
+import Link from "next/link";
 
 export default function OrdersPage() {
    const [searchTerm, setSearchTerm] = useState("");
    const [orders, setOrders] = useState<any[]>([]);
    const [loading, setLoading] = useState(true);
+   const [error, setError] = useState<string | null>(null);
 
    useEffect(() => {
       loadOrders();
    }, []);
 
    const loadOrders = async () => {
+      setLoading(true);
+      setError(null);
       try {
-         setLoading(true);
-         // Hardcoded tenant for MVP
-         const data = await apiOrders.listOrders("tenant_123");
-         setOrders(data || []);
+         const storesRes = await apiStores.getStores();
+         const stores = storesRes?.stores ?? [];
+         const storeId = stores[0]?.store_id ?? stores[0]?.storeId;
+
+         if (!storeId) {
+            setOrders([]);
+            setError("Create a store first to view orders.");
+            return;
+         }
+
+         const data = await apiOrders.listOrders(storeId);
+         setOrders(Array.isArray(data) ? data : []);
       } catch (e) {
+         const msg = e instanceof Error ? e.message : "Failed to load orders.";
+         setError(msg);
+         setOrders([]);
          console.error("Failed to load orders", e);
       } finally {
          setLoading(false);
@@ -52,6 +67,20 @@ export default function OrdersPage() {
                </button>
             </div>
          </div>
+
+         {error && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-start gap-3">
+               <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+               <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-800">{error}</p>
+                  {error.includes("Create a store") && (
+                     <Link href="/dashboard/sites/new" className="text-sm text-amber-700 underline mt-1 inline-block">
+                        Create a store →
+                     </Link>
+                  )}
+               </div>
+            </div>
+         )}
 
          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             {/* Search Bar */}

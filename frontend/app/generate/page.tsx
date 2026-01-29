@@ -20,17 +20,31 @@ export default function GenerateStorePage() {
       setResult(null);
 
       try {
-         const response = await apiStores.generateStore({
-            prompt,
-            storeType,
-            language: "en",
-            currency: "INR"
+         const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+         const headers: Record<string, string> = { "Content-Type": "application/json" };
+         if (token) headers["Authorization"] = `Bearer ${token}`;
+
+         const res = await fetch("/api/generate", {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ prompt: prompt.trim(), storeType, language: "en", currency: "INR" }),
          });
 
-         setResult(response.store);
-         console.log("Store generated:", response.store);
-      } catch (error: any) {
-         setError(error.message || "Failed to generate store");
+         const data = await res.json().catch(() => ({ success: false, error: "Invalid response from server." }));
+
+         if (res.status === 401) {
+            router.push("/login");
+            return;
+         }
+
+         if (!data.success || !data.data) {
+            setError((data as { error?: string }).error || "Generation failed.");
+            return;
+         }
+
+         setResult((data as { data: unknown }).data);
+      } catch (err) {
+         setError(err instanceof Error ? err.message : "Failed to generate store.");
       } finally {
          setLoading(false);
       }
@@ -43,7 +57,7 @@ export default function GenerateStorePage() {
          setLoading(true);
          const response = await apiStores.publishStore(result.store_id);
          console.log("Store published:", response.store);
-         router.push(`/dashboard/stores/${result.store_id}`);
+         router.push(`/sites/${result.store_id}`);
       } catch (error: any) {
          setError(error.message || "Failed to publish store");
       } finally {
@@ -53,25 +67,25 @@ export default function GenerateStorePage() {
 
    return (
       <div className="min-h-screen bg-gray-50">
-         {/* Header */}
-         <header className="bg-white shadow-sm">
-            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center">
+         <header className="bg-white shadow-sm sticky top-0 z-10">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center gap-4">
                <button
                   onClick={() => router.back()}
-                  className="mr-4 p-2 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
+                  className="p-2 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100 touch-manipulation"
+                  aria-label="Go back"
                >
                   <ArrowLeft className="h-5 w-5" />
                </button>
-               <div>
-                  <h1 className="text-2xl font-bold text-gray-900">Generate AI Store</h1>
-                  <p className="text-sm text-gray-600">Describe your business and we'll create a complete website</p>
+               <div className="min-w-0 flex-1">
+                  <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">Generate AI Store</h1>
+                  <p className="text-sm text-gray-600">Describe your business and we&apos;ll create a complete website</p>
                </div>
             </div>
          </header>
 
-         <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+         <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
             {!result ? (
-               <div className="bg-white rounded-lg shadow p-8">
+               <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 sm:p-8">
                   <form onSubmit={handleGenerate} className="space-y-6">
                      <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -110,15 +124,19 @@ export default function GenerateStorePage() {
                      </div>
 
                      {error && (
-                        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                           <p className="text-red-600 text-sm">{error}</p>
+                        <div className="p-4 bg-red-50 border border-red-200 rounded-xl space-y-1">
+                           <p className="text-red-700 text-sm font-medium">{error}</p>
+                           <p className="text-red-600 text-xs">
+                              Log in first, then try again.{" "}
+                              <a href="/api/health" target="_blank" rel="noopener noreferrer" className="underline">Check backend</a>.
+                           </p>
                         </div>
                      )}
 
                      <button
                         type="submit"
                         disabled={loading || !prompt.trim()}
-                        className="w-full flex items-center justify-center px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-semibold hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                        className="w-full flex items-center justify-center px-6 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-xl font-semibold hover:from-indigo-700 hover:to-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 touch-manipulation"
                      >
                         {loading ? (
                            <>
@@ -136,56 +154,55 @@ export default function GenerateStorePage() {
                </div>
             ) : (
                <div className="space-y-6">
-                  <div className="bg-white rounded-lg shadow p-8">
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 sm:p-8">
                      <div className="text-center mb-6">
-                        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                           <Sparkles className="h-8 w-8 text-green-600" />
+                        <div className="w-14 h-14 sm:w-16 sm:h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                           <Sparkles className="h-7 w-7 sm:h-8 sm:w-8 text-green-600" />
                         </div>
-                        <h2 className="text-2xl font-bold text-gray-900 mb-2">Store Generated Successfully!</h2>
-                        <p className="text-gray-600">Your AI-powered website is ready for preview</p>
+                        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Store generated</h2>
+                        <p className="text-gray-600 text-sm sm:text-base">Your AI-powered site is ready to preview.</p>
                      </div>
 
-                     <div className="bg-gray-50 rounded-lg p-6 mb-6">
-                        <h3 className="font-semibold text-gray-900 mb-2">Store Details</h3>
+                     <div className="bg-gray-50 rounded-xl p-4 sm:p-6 mb-6">
+                        <h3 className="font-semibold text-gray-900 mb-2">Store details</h3>
                         <div className="space-y-2 text-sm">
-                           <div><span className="font-medium">Store ID:</span> {result.store_id}</div>
-                           <div><span className="font-medium">Status:</span> 
-                              <span className="ml-2 px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs">
+                           <div><span className="font-medium text-gray-600">ID:</span> <span className="font-mono text-gray-900">{result.store_id}</span></div>
+                           <div>
+                              <span className="font-medium text-gray-600">Status:</span>
+                              <span className="ml-2 px-2 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-medium">
                                  {result.status}
                               </span>
                            </div>
                            {result.preview_url && (
                               <div>
-                                 <span className="font-medium">Preview URL:</span>
-                                 <a 
-                                    href={result.preview_url} 
-                                    target="_blank" 
+                                 <span className="font-medium text-gray-600">Preview:</span>
+                                 <a
+                                    href={result.preview_url}
+                                    target="_blank"
                                     rel="noopener noreferrer"
-                                    className="ml-2 text-blue-600 hover:text-blue-800 underline"
+                                    className="ml-2 text-indigo-600 hover:text-indigo-800 underline break-all"
                                  >
-                                    View Preview
+                                    Open preview
                                  </a>
                               </div>
                            )}
                         </div>
                      </div>
 
-                     <div className="flex space-x-4">
+                     <div className="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4">
                         <button
-                           onClick={() => setResult(null)}
-                           className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-semibold"
+                           onClick={() => { setResult(null); setError(""); }}
+                           className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold transition-colors touch-manipulation"
                         >
-                           Generate Another
+                           Generate another
                         </button>
                         <button
                            onClick={handlePublish}
                            disabled={loading}
-                           className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold disabled:opacity-50 flex items-center justify-center"
+                           className="flex-1 px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 font-semibold disabled:opacity-50 flex items-center justify-center gap-2 touch-manipulation"
                         >
-                           {loading ? (
-                              <Loader2 className="animate-spin h-5 w-5 mr-2" />
-                           ) : null}
-                           Publish Store
+                           {loading ? <Loader2 className="animate-spin h-5 w-5" /> : null}
+                           Publish store
                         </button>
                      </div>
                   </div>

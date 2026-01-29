@@ -52,13 +52,15 @@ export const createOrder = async (event: APIGatewayEvent) => {
          return response(400, { error: 'Missing required fields: customer, items' });
       }
 
-      // Get store to validate and get tenant_id
-      const storeResult = await docClient.send(new GetCommand({
+      // Get store by store_id (GSI) to validate and get tenant_id
+      const storeQuery = await docClient.send(new QueryCommand({
          TableName: STORES_TABLE,
-         Key: { store_id: storeId },
+         IndexName: 'store-id-index',
+         KeyConditionExpression: 'store_id = :sid',
+         ExpressionAttributeValues: { ':sid': storeId },
+         Limit: 1,
       }));
-
-      const store = storeResult.Item;
+      const store = storeQuery.Items?.[0];
       if (!store) {
          return response(404, { error: 'Store not found' });
       }

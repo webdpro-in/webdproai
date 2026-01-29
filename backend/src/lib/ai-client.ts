@@ -14,6 +14,8 @@ interface AIGenerationRequest {
    };
    tenantId: string;
    storeId: string;
+   /** 'fallback' = template-only, fast, no Bedrock. Omit to try Bedrock then fallback. */
+   mode?: 'fallback';
 }
 
 interface AIGenerationResponse {
@@ -28,57 +30,59 @@ interface AIGenerationResponse {
    details?: string;
 }
 
+const AI_REQUEST_TIMEOUT_MS = 25_000;
+
 export class AIServiceClient {
    private baseUrl: string;
-   private maxRetries: number = 3;
+   private maxRetries: number = 2;
    private retryDelay: number = 1000;
 
    constructor() {
-      // Use the deployed AI service URL
       this.baseUrl = process.env.AI_SERVICE_URL || 'https://l0wi495th5.execute-api.eu-north-1.amazonaws.com/dev';
    }
 
    async generateWebsite(request: AIGenerationRequest): Promise<AIGenerationResponse> {
+      const useFallback = request.mode === 'fallback';
+      const payload = { ...request, mode: useFallback ? 'fallback' : undefined };
       let lastError: Error | null = null;
 
       for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
+         const ac = new AbortController();
+         const timeout = setTimeout(() => ac.abort(), AI_REQUEST_TIMEOUT_MS);
+
          try {
             console.log(
-               `[AI Client] Attempt ${attempt}/${this.maxRetries}: ` +
-               `Calling ${this.baseUrl}/ai/generate`
+               `[AI Client] Attempt ${attempt}/${this.maxRetries} ` +
+               `(${useFallback ? 'fallback' : 'bedrock+fallback'}): ${this.baseUrl}/ai/generate`
             );
 
             const response = await fetch(`${this.baseUrl}/ai/generate`, {
                method: 'POST',
-               headers: {
-                  'Content-Type': 'application/json',
-               },
-               body: JSON.stringify(request),
+               headers: { 'Content-Type': 'application/json' },
+               body: JSON.stringify(payload),
+               signal: ac.signal,
             });
 
+            clearTimeout(timeout);
             const responseText = await response.text();
 
             if (!response.ok) {
-               throw new Error(
-                  `AI service returned ${response.status}: ${responseText}`
-               );
+               throw new Error(`AI service returned ${response.status}: ${responseText.slice(0, 500)}`);
             }
 
             const result = JSON.parse(responseText);
             console.log('[AI Client] Generation successful');
             return result;
-
          } catch (error) {
+            clearTimeout(timeout);
             lastError = error instanceof Error ? error : new Error('Unknown error');
-            console.error(
-               `[AI Client] Attempt ${attempt} failed:`,
-               lastError.message
-            );
+            const isAbort = lastError.name === 'AbortError';
+            console.error(`[AI Client] Attempt ${attempt} failed:`, isAbort ? 'timeout' : lastError.message);
 
             if (attempt < this.maxRetries) {
                const delay = this.retryDelay * attempt;
                console.log(`[AI Client] Retrying in ${delay}ms...`);
-               await new Promise(resolve => setTimeout(resolve, delay));
+               await new Promise((r) => setTimeout(r, delay));
             }
          }
       }
@@ -86,7 +90,9 @@ export class AIServiceClient {
       console.error('[AI Client] All retry attempts failed');
       return {
          success: false,
-         error: 'AI generation failed after retries',
+         error: lastError?.name === 'AbortError'
+            ? 'AI service request timed out. Try again.'
+            : 'AI generation failed after retries',
          details: lastError?.message || 'Unknown error',
       };
    }

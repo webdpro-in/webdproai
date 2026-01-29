@@ -16,6 +16,46 @@ provider:
   # CloudWatch Logs retention
   logRetentionInDays: 7
   
+  # HTTP API Configuration (API Gateway V2)
+  httpApi:
+    # CORS Configuration with whitelisted origins (Requirements 7.3, 16.1)
+    cors:
+      allowedOrigins:
+        - http://localhost:3000
+        - https://d3qhkomcxcxmtl.cloudfront.net
+        - https://ai-gamma-rose.vercel.app
+        - ${env:FRONTEND_URL, 'http://localhost:3000'}
+      allowedHeaders:
+        - Content-Type
+        - Authorization
+        - X-Request-ID
+        - X-Amz-Date
+        - X-Api-Key
+        - X-Amz-Security-Token
+        - X-Amz-User-Agent
+      allowedMethods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+      maxAge: 3600
+      allowCredentials: true
+    
+    # JWT Authorizer with Cognito (Requirements 7.4, 16.2)
+    authorizers:
+      cognitoAuthorizer:
+        type: jwt
+        identitySource: $request.header.Authorization
+        issuerUrl: https://cognito-idp.${self:provider.region}.amazonaws.com/${self:custom.cognitoUserPoolId}
+        audience:
+          - ${self:custom.cognitoClientId}
+    
+    # Throttling/Rate Limiting (Requirements 7.4, 16.3)
+    throttle:
+      burstLimit: 100
+      rateLimit: 50
+  
   environment:
     AWS_NODEJS_CONNECTION_REUSE_ENABLED: "1"
     POWERTOOLS_SERVICE_NAME: webdpro-backend
@@ -29,6 +69,7 @@ provider:
     WEBDPRO_RAZORPAY_KEY_SECRET: ${env:RAZORPAY_KEY_SECRET, 'test_secret'}
     EVENTS_TOPIC_ARN: !Ref WebDProEventsTopic
     AI_SERVICE_URL: https://l0wi495th5.execute-api.eu-north-1.amazonaws.com/dev
+    AI_USE_BEDROCK: ${env:AI_USE_BEDROCK, 'false'}
     S3_BUCKET: webdpro-ai-storage-dev
     CLOUDFRONT_DISTRIBUTION_ID: ${env:CLOUDFRONT_DISTRIBUTION_ID, ''}
 
@@ -57,6 +98,12 @@ provider:
             - cognito-idp:InitiateAuth
             - cognito-idp:RespondToAuthChallenge
           Resource: "*"
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+          Resource: "arn:aws:logs:${self:provider.region}:*:log-group:/aws/apigateway/*"
         - Effect: Allow
           Action:
             - acm:RequestCertificate
@@ -88,70 +135,13 @@ package:
     - '!test/**'
 
 functions:
-  # CORS Handler for OPTIONS requests
-  corsHandler:
-    handler: src/handlers/cors.handleOptions
-    events:
-      - http:
-          path: /auth/otp/request
-          method: options
-      - http:
-          path: /auth/otp/verify
-          method: options
-      - http:
-          path: /auth/google/sync
-          method: options
-      - http:
-          path: /auth/profile
-          method: options
-      - http:
-          path: /stores/generate
-          method: options
-      - http:
-          path: /stores
-          method: options
-      - http:
-          path: /stores/{storeId}
-          method: options
-      - http:
-          path: /stores/{storeId}/publish
-          method: options
-      - http:
-          path: /stores/{storeId}/domain
-          method: options
-      - http:
-          path: /stores/{storeId}/domain/status
-          method: options
-      - http:
-          path: /stores/{storeId}/domain/verify
-          method: options
-      - http:
-          path: /stores/{storeId}/orders
-          method: options
-      - http:
-          path: /orders/{orderId}
-          method: options
-      - http:
-          path: /orders/{orderId}/status
-          method: options
-
-  # Auth Functions
+  # Auth Functions (Public - no authorizer)
   requestOTP:
     handler: src/handlers/auth.requestOTP
     events:
-      - http:
+      - httpApi:
           path: /auth/otp/request
           method: post
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
     environment:
       COGNITO_USER_POOL_ID: !Ref CognitoUserPoolWebDProUserPoolV3
       COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
@@ -159,19 +149,9 @@ functions:
   verifyOTP:
     handler: src/handlers/auth.verifyOTP
     events:
-      - http:
+      - httpApi:
           path: /auth/otp/verify
           method: post
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
     environment:
       COGNITO_USER_POOL_ID: !Ref CognitoUserPoolWebDProUserPoolV3
       COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
@@ -179,19 +159,9 @@ functions:
   syncGoogleUser:
     handler: src/handlers/auth.syncGoogleUser
     events:
-      - http:
+      - httpApi:
           path: /auth/google/sync
           method: post
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
     environment:
       COGNITO_USER_POOL_ID: !Ref CognitoUserPoolWebDProUserPoolV3
       COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
@@ -199,19 +169,11 @@ functions:
   getProfile:
     handler: src/handlers/auth.getProfile
     events:
-      - http:
+      - httpApi:
           path: /auth/profile
           method: get
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
+          authorizer:
+            name: cognitoAuthorizer
     environment:
       COGNITO_USER_POOL_ID: !Ref CognitoUserPoolWebDProUserPoolV3
       COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
@@ -226,214 +188,118 @@ functions:
   verifyAuthChallengeResponse:
     handler: src/handlers/auth_triggers.verifyAuthChallengeResponse
 
-  # Store Functions
+  # Store Functions (Protected - require JWT authorization)
   generateStore:
     handler: src/handlers/stores.generateStore
-    timeout: 29
-    memorySize: 512  # Increased for AI service calls
+    timeout: 60
+    memorySize: 512
     events:
-      - http:
+      - httpApi:
           path: /stores/generate
           method: post
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
+          authorizer:
+            name: cognitoAuthorizer
 
   getStores:
     handler: src/handlers/stores.getStores
     events:
-      - http:
+      - httpApi:
           path: /stores
           method: get
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
+          authorizer:
+            name: cognitoAuthorizer
 
   getStore:
     handler: src/handlers/stores.getStore
     events:
-      - http:
+      - httpApi:
           path: /stores/{storeId}
           method: get
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
+          authorizer:
+            name: cognitoAuthorizer
 
   publishStore:
     handler: src/handlers/stores.publishStore
     events:
-      - http:
+      - httpApi:
           path: /stores/{storeId}/publish
           method: post
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
+          authorizer:
+            name: cognitoAuthorizer
 
   updateStore:
     handler: src/handlers/stores.updateStore
     events:
-      - http:
+      - httpApi:
           path: /stores/{storeId}
           method: put
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
+          authorizer:
+            name: cognitoAuthorizer
 
-  # Domain Management
+  # Domain Management (Protected - require JWT authorization)
   connectDomain:
     handler: src/handlers/domains.connectDomain
     events:
-      - http:
+      - httpApi:
           path: /stores/{storeId}/domain
           method: post
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
+          authorizer:
+            name: cognitoAuthorizer
 
   getDomainStatus:
     handler: src/handlers/domains.getDomainStatus
     events:
-      - http:
+      - httpApi:
           path: /stores/{storeId}/domain/status
           method: get
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
+          authorizer:
+            name: cognitoAuthorizer
 
   verifyDomain:
     handler: src/handlers/domains.verifyDomain
     events:
-      - http:
+      - httpApi:
           path: /stores/{storeId}/domain/verify
           method: post
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
+          authorizer:
+            name: cognitoAuthorizer
 
-  # Order Management
+  # Order Management (Protected - require JWT authorization)
   createOrder:
     handler: src/handlers/orders.createOrder
     events:
-      - http:
+      - httpApi:
           path: /stores/{storeId}/orders
           method: post
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
+          authorizer:
+            name: cognitoAuthorizer
 
   getOrder:
     handler: src/handlers/orders.getOrder
     events:
-      - http:
+      - httpApi:
           path: /orders/{orderId}
           method: get
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
+          authorizer:
+            name: cognitoAuthorizer
 
   getStoreOrders:
     handler: src/handlers/orders.getStoreOrders
     events:
-      - http:
+      - httpApi:
           path: /stores/{storeId}/orders
           method: get
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
+          authorizer:
+            name: cognitoAuthorizer
 
   updateOrderStatus:
     handler: src/handlers/orders.updateOrderStatus
     events:
-      - http:
+      - httpApi:
           path: /orders/{orderId}/status
           method: put
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
-              - X-Amz-User-Agent
-            allowCredentials: false
+          authorizer:
+            name: cognitoAuthorizer
 
 plugins:
   - serverless-plugin-typescript
@@ -444,6 +310,9 @@ custom:
   serverless-plugin-typescript:
     tsConfigFileLocation: './tsconfig.json'
   userPoolName: webdpro-users-${self:provider.stage}
+  # Cognito configuration for JWT authorizer
+  cognitoUserPoolId: eu-north-1_RfO53Cz5t
+  cognitoClientId: 7g6sqvvnqsg628napds0k73190
   dotenv:
     exclude:
       - AWS_ACCESS_KEY_ID
@@ -451,57 +320,34 @@ custom:
       - AWS_REGION
 
 # Add Gateway Responses to ensure CORS headers on ALL responses including errors
-  gatewayResponses:
-    DEFAULT_4XX:
-      responseParameters:
-        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
-        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
-        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
-    DEFAULT_5XX:
-      responseParameters:
-        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
-        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
-        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
-    UNAUTHORIZED:
-      statusCode: 401
-      responseParameters:
-        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
-        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
-        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+# Note: HTTP API (v2) handles CORS automatically based on httpApi.cors configuration
 
 resources:
   Resources:
-    # Gateway Responses for CORS on error responses
-    GatewayResponseDefault4XX:
-      Type: AWS::ApiGateway::GatewayResponse
+    # HTTP API (v2) handles CORS automatically via httpApi.cors configuration
+    # No need for manual Gateway Response resources
+    
+    # CloudWatch Log Group for API Gateway Access Logs (Requirement 16.5)
+    HttpApiLogGroup:
+      Type: AWS::Logs::LogGroup
       Properties:
-        ResponseParameters:
-          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
-          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
-          gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
-        ResponseType: DEFAULT_4XX
-        RestApiId: !Ref ApiGatewayRestApi
-
-    GatewayResponseDefault5XX:
-      Type: AWS::ApiGateway::GatewayResponse
+        LogGroupName: /aws/apigateway/webdpro-backend-${self:provider.stage}
+        RetentionInDays: 7
+    
+    # HTTP API Stage with Access Logging
+    HttpApiStage:
+      Type: AWS::ApiGatewayV2::Stage
       Properties:
-        ResponseParameters:
-          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
-          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
-          gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
-        ResponseType: DEFAULT_5XX
-        RestApiId: !Ref ApiGatewayRestApi
-
-    GatewayResponseUnauthorized:
-      Type: AWS::ApiGateway::GatewayResponse
-      Properties:
-        ResponseParameters:
-          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
-          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'"
-          gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
-        ResponseType: UNAUTHORIZED
-        RestApiId: !Ref ApiGatewayRestApi
-        StatusCode: '401'
+        ApiId: !Ref HttpApi
+        StageName: ${self:provider.stage}
+        AutoDeploy: true
+        AccessLogSettings:
+          DestinationArn: !GetAtt HttpApiLogGroup.Arn
+          Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength","integrationLatency":"$context.integrationLatency","responseLatency":"$context.responseLatency","authorizerError":"$context.authorizer.error","integrationError":"$context.integrationErrorMessage"}'
+        DefaultRouteSettings:
+          ThrottlingBurstLimit: 100
+          ThrottlingRateLimit: 50
+          DetailedMetricsEnabled: true
 
     # IAM Role for Cognito SMS
     CognitoSMSRole:
@@ -649,6 +495,13 @@ resources:
             KeyType: HASH
           - AttributeName: store_id
             KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: store-id-index
+            KeySchema:
+              - AttributeName: store_id
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
 
     TenantsTable:
       Type: AWS::DynamoDB::Table

@@ -14,6 +14,7 @@ function CreateWebsiteContent() {
 
    const [isGenerating, setIsGenerating] = useState(false)
    const [generationStep, setGenerationStep] = useState(0)
+   const [error, setError] = useState<string | null>(null)
 
    // Auto-start if prompt is present
    useEffect(() => {
@@ -39,29 +40,44 @@ function CreateWebsiteContent() {
          setGenerationStep(prev => (prev < steps.length - 1 ? prev + 1 : prev))
       }, 1500)
 
+      setError(null)
       try {
-         // Call our AWS Bedrock API (or fallback)
+         const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
+         const headers: Record<string, string> = { "Content-Type": "application/json" }
+         if (token) headers["Authorization"] = `Bearer ${token}`
+
          const response = await fetch("/api/generate", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers,
             body: JSON.stringify({ prompt })
          });
 
-         const result = await response.json();
+         const result = await response.json().catch(() => ({ success: false, error: "Invalid response from server." }));
 
-         if (result.success) {
+         if (response.status === 401) {
             clearInterval(interval)
-            setGenerationStep(steps.length) // Complete
+            setIsGenerating(false)
+            router.push("/login")
+            return
+         }
 
-            // Encode the AI generated config to pass to the Editor (simplified state transfer)
+         if (result.success && result.data) {
+            clearInterval(interval)
+            setGenerationStep(steps.length)
+
             const configString = encodeURIComponent(JSON.stringify(result.data));
-
             setTimeout(() => {
                router.push(`/dashboard/owner/editor/new-site?config=${configString}`)
             }, 800)
+            return
          }
-      } catch (error) {
-         console.error("Generation failed", error)
+
+         setError((result as { error?: string }).error || "Generation failed")
+         clearInterval(interval)
+         setIsGenerating(false)
+      } catch (err) {
+         console.error("Generation failed", err)
+         setError(err instanceof Error ? err.message : "Generation failed")
          clearInterval(interval)
          setIsGenerating(false)
       }
@@ -81,6 +97,11 @@ function CreateWebsiteContent() {
                <p className="text-gray-400">Describe your business, and our AI will build the entire operation in minutes.</p>
             </div>
 
+            {error && (
+               <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+                  {error}
+               </div>
+            )}
             {!isGenerating ? (
                <div className="py-12">
                   <PromptBox onSubmit={handleGenerate} />

@@ -54,7 +54,7 @@ export const generateWebsite = async (event: APIGatewayProxyEvent): Promise<APIG
          });
       }
 
-      const { input, tenantId, storeId } = body;
+      const { input, tenantId, storeId, mode } = body;
 
       // Validate required fields
       if (!input) {
@@ -85,25 +85,33 @@ export const generateWebsite = async (event: APIGatewayProxyEvent): Promise<APIG
          themePreference: input.themePreference,
       };
 
+      const useFallbackOnly = mode === 'fallback';
       console.log('[Generate Website] Processing generation', {
          businessName: userInput.businessName,
          businessType: userInput.businessType,
          tenantId,
          storeId,
+         mode: useFallbackOnly ? 'fallback' : 'bedrock-then-fallback',
       });
 
-      // Try Bedrock first, fallback to template-based generation
       const startTime = Date.now();
       let result;
-      try {
-         console.log('[Generate Website] Attempting Bedrock generation...');
-         result = await orchestrateSiteGeneration(userInput, tenantId, storeId);
-      } catch (bedrockError) {
-         console.log('[Generate Website] Bedrock failed, using fallback generation...');
-         const errorMessage = bedrockError instanceof Error ? bedrockError.message : 'Unknown error';
-         console.log('[Generate Website] Fallback reason:', errorMessage);
+
+      if (useFallbackOnly) {
+         console.log('[Generate Website] Using fallback (fast) generation only.');
          result = await orchestrateSiteGenerationFallback(userInput, tenantId, storeId);
+      } else {
+         try {
+            console.log('[Generate Website] Attempting Bedrock generation...');
+            result = await orchestrateSiteGeneration(userInput, tenantId, storeId);
+         } catch (bedrockError) {
+            console.log('[Generate Website] Bedrock failed, using fallback generation...');
+            const errorMessage = bedrockError instanceof Error ? bedrockError.message : 'Unknown error';
+            console.log('[Generate Website] Fallback reason:', errorMessage);
+            result = await orchestrateSiteGenerationFallback(userInput, tenantId, storeId);
+         }
       }
+
       const duration = Date.now() - startTime;
 
       console.log('[Generate Website] Generation successful', {

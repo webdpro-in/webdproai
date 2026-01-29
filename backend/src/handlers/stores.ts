@@ -81,8 +81,17 @@ export const generateStore = async (event: APIGatewayEvent) => {
          return response(401, { error: 'Unauthorized - tenant not found' });
       }
 
-      const body = JSON.parse(event.body || '{}');
-      const { prompt, storeType, language = 'en', currency = 'INR' } = body;
+      let body: Record<string, unknown> = {};
+      try {
+         body = typeof event.body === 'string' ? JSON.parse(event.body || '{}') : {};
+      } catch {
+         logger.warn('generateStore', 'Invalid JSON body');
+         return response(400, { error: 'Invalid JSON in request body' });
+      }
+      const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
+      const storeType = typeof body.storeType === 'string' ? body.storeType : 'general';
+      const language = typeof body.language === 'string' ? body.language : 'en';
+      const currency = typeof body.currency === 'string' ? body.currency : 'INR';
 
       if (!prompt) {
          logger.warn('generateStore', 'Missing prompt in request', { tenantId });
@@ -129,8 +138,9 @@ export const generateStore = async (event: APIGatewayEvent) => {
          return response(500, { error: 'Failed to create store record' });
       }
 
-      // Generate website using AI
-      logger.info('generateStore', 'Calling AI service for website generation', { storeId });
+      // Generate website using AI. Default: mode=fallback (fast, no timeout). Set AI_USE_BEDROCK=true to try Bedrock.
+      const useBedrock = process.env.AI_USE_BEDROCK === 'true';
+      logger.info('generateStore', 'Calling AI service for website generation', { storeId, useBedrock });
 
       let aiResponse;
       try {
@@ -143,7 +153,8 @@ export const generateStore = async (event: APIGatewayEvent) => {
                language,
             },
             tenantId,
-            storeId
+            storeId,
+            ...(useBedrock ? {} : { mode: 'fallback' }),
          });
       } catch (aiError: any) {
          logger.error('generateStore', 'AI service call failed', aiError, { storeId, tenantId });
@@ -151,15 +162,20 @@ export const generateStore = async (event: APIGatewayEvent) => {
       }
 
       if (!aiResponse.success || !aiResponse.data) {
+         const aiErr = aiResponse.error || aiResponse.details || 'AI generation failed';
          logger.error('generateStore', 'AI generation returned unsuccessful response', undefined, {
             storeId,
             tenantId,
-            error: aiResponse.error,
+            error: aiErr,
          });
-         throw new Error(aiResponse.error || 'AI generation failed');
+         return response(502, { error: String(aiErr) });
       }
 
-      const website = aiResponse.data;
+      const website = aiResponse.data as { html?: string; css?: string; config?: unknown };
+      if (!website.html || typeof website.html !== 'string') {
+         logger.error('generateStore', 'AI response missing html');
+         return response(502, { error: 'Invalid AI response: missing html' });
+      }
       logger.info('generateStore', 'AI generation complete', { storeId });
 
       // Upload to S3 (draft folder)
@@ -176,13 +192,13 @@ export const generateStore = async (event: APIGatewayEvent) => {
             s3Client.send(new PutObjectCommand({
                Bucket: S3_BUCKET,
                Key: `${draftPath}/styles.css`,
-               Body: website.css,
+               Body: typeof website.css === 'string' ? website.css : '',
                ContentType: 'text/css',
             })),
             s3Client.send(new PutObjectCommand({
                Bucket: S3_BUCKET,
                Key: `${draftPath}/config.json`,
-               Body: JSON.stringify(website.config, null, 2),
+               Body: JSON.stringify(website.config ?? {}, null, 2),
                ContentType: 'application/json',
             })),
          ]);
@@ -232,8 +248,10 @@ export const generateStore = async (event: APIGatewayEvent) => {
       // Populate Inventory from AI Results
       const productsTable = `${process.env.DYNAMODB_TABLE_PREFIX}-products`;
       try {
-         const productSection = website.config.sections.find((s: any) => s.type === 'products');
-         if (productSection && productSection.content && Array.isArray(productSection.content.products)) {
+         const cfg = (website.config || {}) as { sections?: { type?: string; content?: { products?: unknown[] } }[] };
+         const sections = Array.isArray(cfg.sections) ? cfg.sections : [];
+         const productSection = sections.find((s: any) => s?.type === 'products');
+         if (productSection?.content && Array.isArray(productSection.content.products)) {
             logger.info('generateStore', `Auto-populating ${productSection.content.products.length} products`, { storeId });
 
             const productPromises = productSection.content.products.map((p: any) => {

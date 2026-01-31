@@ -8,6 +8,6 @@ export function NavbarWrapper() {
    const isDashboard = pathname?.startsWith("/dashboard");
 
    if (isDashboard) return null;
-   
+
    return <Navbar />;
 }

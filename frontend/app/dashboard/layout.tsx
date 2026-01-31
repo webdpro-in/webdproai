@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import PromoCodeBarrier from "@/components/auth/PromoCodeBarrier";
 import {
    LayoutDashboard,
    Store,
@@ -35,7 +36,16 @@ export default function DashboardLayout({
    const [isSidebarOpen, setSidebarOpen] = useState(true);
    const [user, setUser] = useState<UserProfile | null>(null);
 
+   // Promo Code State
+   const [isPromoVerified, setIsPromoVerified] = useState(false);
+   const [checked, setChecked] = useState(false);
+
    useEffect(() => {
+      // Check promo code status
+      const verified = localStorage.getItem("promo_verified") === "true";
+      setIsPromoVerified(verified);
+      setChecked(true);
+
       // Basic Auth Check
       const token = localStorage.getItem("token");
       if (!token) {
@@ -64,8 +74,17 @@ export default function DashboardLayout({
    const handleLogout = () => {
       localStorage.removeItem("token");
       localStorage.removeItem("refresh_token");
+      localStorage.removeItem("promo_verified"); // Clear promo access on logout
       router.push("/login");
    };
+
+   // Prevent flash of content
+   if (!checked) return null;
+
+   // Show barrier if not verified
+   if (!isPromoVerified && checked) {
+      return <PromoCodeBarrier onSuccess={() => setIsPromoVerified(true)} />;
+   }
 
    return (
       <div className="min-h-screen bg-gray-50 flex">
@@ -96,8 +115,8 @@ export default function DashboardLayout({
                            key={item.href}
                            href={item.href}
                            className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${isActive
-                                 ? "bg-indigo-50 text-indigo-700"
-                                 : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                              ? "bg-indigo-50 text-indigo-700"
+                              : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
                               }`}
                         >
                            <Icon className={`h-5 w-5 mr-3 ${isActive ? "text-indigo-600" : "text-gray-400"}`} />

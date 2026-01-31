@@ -87,16 +87,16 @@ export default function DashboardLayout({
    }
 
    return (
-      <div className="min-h-screen bg-gray-50 flex">
+      <div className="min-h-screen bg-gray-50 flex pt-[73px]">
          {/* Sidebar */}
          <aside
-            className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 transform transition-transform duration-200 ease-in-out ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"
-               } lg:relative lg:translate-x-0`}
+            className={`fixed inset-y-0 left-0 z-[60] w-64 bg-white border-r border-gray-200 transform transition-transform duration-200 ease-in-out ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+               } lg:fixed lg:top-[73px] lg:bottom-0 lg:h-[calc(100vh-73px)] lg:translate-x-0 lg:z-40`}
          >
             <div className="h-full flex flex-col">
-               <div className="h-16 flex items-center px-6 border-b border-gray-100">
+               <div className="h-16 flex items-center px-6 border-b border-gray-100 lg:hidden">
                   <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-violet-600">
-                     WebDPro AI
+                     Webdpro
                   </span>
                   <button
                      className="ml-auto lg:hidden"
@@ -179,7 +179,7 @@ export default function DashboardLayout({
                >
                   <Menu className="h-6 w-6" />
                </button>
-               <span className="ml-4 font-semibold text-gray-900">WebDPro AI</span>
+               <span className="ml-4 font-semibold text-gray-900">Webdpro</span>
             </header>
 
             {/* Content Area */}

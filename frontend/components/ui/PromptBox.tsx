@@ -45,12 +45,12 @@ export function PromptBox({ onSubmit, isGenerating }: PromptBoxProps) {
          <form onSubmit={handleSubmit} className="relative">
             <div
                className={cnUtil(
-                  "relative flex items-center bg-white backdrop-blur-xl border border-gray-200 rounded-2xl p-2 transition-all duration-300 overflow-hidden shadow-sm",
-                  isFocused ? "ring-2 ring-indigo-500/20 scale-[1.02] border-indigo-200" : "hover:border-gray-300"
+                  "relative flex flex-col md:flex-row items-stretch md:items-center bg-white backdrop-blur-xl border border-gray-200 rounded-xl md:rounded-2xl p-2 transition-all duration-300 overflow-hidden shadow-sm",
+                  isFocused ? "ring-2 ring-indigo-500/20 scale-[1.01] md:scale-[1.02] border-indigo-200" : "hover:border-gray-300"
                )}
             >
                {/* Icon */}
-               <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 ml-2">
+               <div className="hidden md:flex items-center justify-center w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 ml-2">
                   <Sparkles className={cnUtil("w-6 h-6", isGenerating ? "animate-spin" : "animate-pulse")} />
                </div>
 
@@ -62,7 +62,7 @@ export function PromptBox({ onSubmit, isGenerating }: PromptBoxProps) {
                   onFocus={() => setIsFocused(true)}
                   onBlur={() => setIsFocused(false)}
                   placeholder="Describe your dream business... (e.g. 'Minimalist coffee shop in Tokyo')"
-                  className="flex-1 bg-transparent border-none text-gray-900 placeholder-gray-400 focus:ring-0 px-4 py-3 text-lg outline-none"
+                  className="flex-1 bg-transparent border-none text-gray-900 placeholder-gray-400 focus:ring-0 px-4 py-4 md:py-3 text-base md:text-lg outline-none w-full"
                   disabled={isGenerating}
                />
 
@@ -71,7 +71,7 @@ export function PromptBox({ onSubmit, isGenerating }: PromptBoxProps) {
                   type="submit"
                   disabled={!prompt.trim() || isGenerating}
                   className={cnUtil(
-                     "flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all duration-300",
+                     "flex items-center justify-center gap-2 px-6 py-3 md:py-3 rounded-lg md:rounded-xl font-medium transition-all duration-300 mt-2 md:mt-0",
                      prompt.trim() && !isGenerating
                         ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/25"
                         : "bg-gray-100 text-gray-400 cursor-not-allowed"

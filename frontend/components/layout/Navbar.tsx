@@ -19,14 +19,23 @@ export function Navbar() {
       const token = localStorage.getItem("token");
       setIsLoggedIn(!!token);
 
-      // Listen for storage events (logout from other tabs) and custom events
+      // Listen for storage events (logout from other tabs) and custom logout events
       const handleStorageChange = () => {
          const currentToken = localStorage.getItem("token");
          setIsLoggedIn(!!currentToken);
       };
 
+      const handleLogoutEvent = () => {
+         setIsLoggedIn(false);
+      };
+
       window.addEventListener("storage", handleStorageChange);
-      return () => window.removeEventListener("storage", handleStorageChange);
+      window.addEventListener("logout", handleLogoutEvent);
+      
+      return () => {
+         window.removeEventListener("storage", handleStorageChange);
+         window.removeEventListener("logout", handleLogoutEvent);
+      };
    }, []);
 
    return (

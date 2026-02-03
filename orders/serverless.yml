@@ -53,5 +53,13 @@ functions:
           method: get
           cors: true
 
+  ping:
+    handler: src/index.ping
+    events:
+      - http:
+          path: /orders/health
+          method: get
+          cors: true
+
 plugins:
   - serverless-plugin-typescript

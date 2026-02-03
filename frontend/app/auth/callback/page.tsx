@@ -35,10 +35,20 @@ function AuthCallbackInner() {
                localStorage.setItem("refresh_token", result.tokens.refreshToken);
                localStorage.setItem("user", JSON.stringify(result.user));
 
-               if (result.user.role === "BUSINESS_OWNER") {
-                  router.push("/dashboard/business");
+               // Check for pending prompt
+               const pendingPrompt = localStorage.getItem("pending_prompt");
+               const promoVerified = localStorage.getItem("promo_verified");
+
+               if (pendingPrompt) {
+                  localStorage.removeItem("pending_prompt");
+                  const encodedPrompt = encodeURIComponent(pendingPrompt);
+                  router.push(`/dashboard/sites/new?prompt=${encodedPrompt}`);
+               } else if (promoVerified === "true") {
+                  // Promo already verified, go to dashboard
+                  router.push("/dashboard/sites");
                } else {
-                  router.push("/dashboard");
+                  // Need promo verification first
+                  router.push("/auth/promo");
                }
             } else {
                setError(result.message || "Authentication failed");

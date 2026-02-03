@@ -12,7 +12,7 @@
       "deploy": "serverless deploy",
       "deploy:dev": "serverless deploy --stage dev",
       "deploy:prod": "serverless deploy --stage prod",
-      "dev:offline": "serverless offline --httpPort 4000"
+      "dev:offline": "serverless offline start --stage dev --httpPort 3001"
    },
    "dependencies": {
       "@aws-sdk/client-acm": "^3.975.0",
@@ -21,12 +21,15 @@
       "@aws-sdk/client-dynamodb": "^3.971.0",
       "@aws-sdk/client-eventbridge": "^3.971.0",
       "@aws-sdk/client-route-53": "^3.975.0",
-      "@aws-sdk/client-s3": "^3.971.0",
+      "@aws-sdk/client-s3": "^3.980.0",
       "@aws-sdk/client-sns": "^3.971.0",
       "@aws-sdk/lib-dynamodb": "^3.971.0",
+      "@types/cheerio": "^0.22.35",
+      "cheerio": "^1.2.0",
       "cors": "^2.8.5",
       "dotenv": "^16.4.7",
       "express": "^4.21.2",
+      "mime-types": "^2.1.35",
       "razorpay": "^2.9.4",
       "uuid": "^9.0.1"
    },

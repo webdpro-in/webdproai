@@ -78,6 +78,15 @@ functions:
           method: get
           cors: true
 
+  # Health Check
+  ping:
+    handler: src/handlers/health.ping
+    events:
+      - http:
+          path: /delivery/health
+          method: get
+          cors: true
+
 plugins:
   - serverless-plugin-typescript
 

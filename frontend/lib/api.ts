@@ -1,12 +1,37 @@
+// WebDPro API Client - Frontend to Backend Communication
+// SECURITY: Frontend ONLY calls backend API Gateway
+// Frontend NEVER calls AI service, Bedrock, or other internal services directly
+
+// ============================================
+// API Base URLs (from environment variables)
+// ============================================
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
 export const PAYMENTS_BASE_URL = process.env.NEXT_PUBLIC_PAYMENTS_URL || "";
 export const AI_BASE_URL = process.env.NEXT_PUBLIC_AI_URL || "";
 export const INVENTORY_BASE_URL = process.env.NEXT_PUBLIC_INVENTORY_URL || "";
+export const DELIVERY_BASE_URL = process.env.NEXT_PUBLIC_DELIVERY_URL || "";
+
+// Legacy compatibility
+export const BACKEND_URL = API_BASE_URL;
 
 interface APIError {
    error: string;
    details?: string;
 }
+
+// Validation function - runs on module load
+function validateBackendUrl(): void {
+   if (!BACKEND_URL || !BACKEND_URL.startsWith("http")) {
+      console.error(
+         "Backend URL not configured. Set NEXT_PUBLIC_BACKEND_URL in .env.local.\n" +
+         "Local: http://localhost:3001\n" +
+         "Production: https://7ix42khff8.execute-api.eu-north-1.amazonaws.com/dev"
+      );
+   }
+}
+
+// Call validation on module load
+validateBackendUrl();
 
 function getToken(): string | null {
    if (typeof window === "undefined") return null;
@@ -15,7 +40,11 @@ function getToken(): string | null {
 
 async function fetchAPI<T>(url: string, options?: RequestInit): Promise<T> {
    if (!url || !url.startsWith("http")) {
-      throw new Error("API base URL not configured. Set NEXT_PUBLIC_API_URL (and related) in .env.local.");
+      throw new Error(
+         "API base URL not configured. Set NEXT_PUBLIC_BACKEND_URL in .env.local.\n" +
+         "Local: http://localhost:3001\n" +
+         "Production: https://93vhhkyxx7.execute-api.eu-north-1.amazonaws.com/dev"
+      );
    }
    const token = getToken();
    const headers = {
@@ -24,17 +53,41 @@ async function fetchAPI<T>(url: string, options?: RequestInit): Promise<T> {
       ...(options?.headers as Record<string, string>),
    };
 
-   const res = await fetch(url, { ...options, headers });
-   let data: unknown;
    try {
-      data = await res.json();
-   } catch {
-      data = {};
+      // Debug log to help identify URL issues
+      // console.log(`[API] Fetching: ${url}`); 
+      const res = await fetch(url, { ...options, headers });
+
+      let data: unknown;
+      try {
+         // Clone response to safely read text if JSON fails
+         const clone = res.clone();
+         try {
+            data = await res.json();
+         } catch {
+            // If JSON fails, try to read text for error details
+            const text = await clone.text();
+            console.error(`[API] Invalid JSON response from ${url}:`, text);
+            throw new Error(`API request failed: Invalid JSON response`);
+         }
+      } catch (jsonErr) {
+         throw jsonErr;
+      }
+
+      if (!res.ok) {
+         const errorMessage = (data as APIError)?.error || `API request failed (${res.status})`;
+         console.error(`[API] Error ${res.status} from ${url}:`, errorMessage);
+         throw new Error(errorMessage);
+      }
+      return data as T;
+   } catch (error: any) {
+      console.error(`[API] Network or Parse Error for ${url}:`, error);
+      // Check for common issues
+      if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+         throw new Error(`Network error: Unable to connect to backend (${url}). Please check your internet connection or if the backend is reachable.`);
+      }
+      throw error;
    }
-   if (!res.ok) {
-      throw new Error((data as APIError)?.error || `API request failed (${res.status})`);
-   }
-   return data as T;
 }
 
 // --- AUTH ---
@@ -70,20 +123,32 @@ export const apiStores = {
          success: boolean;
          store: { store_id: string; status: string; preview_url: string; config: any };
       }>(
-         `${API_BASE_URL}/stores/generate`,
+         `${BACKEND_URL}/stores/generate`,
          { method: "POST", body: JSON.stringify(data) }
       );
    },
 
    getStores: async () => {
       return fetchAPI<{ success: boolean; stores: any[]; count: number }>(
-         `${API_BASE_URL}/stores`
+         `${BACKEND_URL}/stores`
       );
    },
 
    getStore: async (storeId: string) => {
       return fetchAPI<{ success: boolean; store: any }>(
-         `${API_BASE_URL}/stores/${storeId}`
+         `${BACKEND_URL}/stores/${storeId}`
+      );
+   },
+
+   updateStore: async (storeId: string, updates: {
+      config?: any;
+      custom_domain?: string;
+      language?: string;
+      currency?: string;
+   }) => {
+      return fetchAPI<{ success: boolean; message: string }>(
+         `${BACKEND_URL}/stores/${storeId}`,
+         { method: 'PUT', body: JSON.stringify(updates) }
       );
    },
 
@@ -92,8 +157,18 @@ export const apiStores = {
          success: boolean;
          store: { store_id: string; status: string; live_url: string; domain: string };
       }>(
-         `${API_BASE_URL}/stores/${storeId}/publish`,
+         `${BACKEND_URL}/stores/${storeId}/publish`,
          { method: "POST", body: JSON.stringify({ subdomain }) }
+      );
+   },
+
+   regenerateStore: async (storeId: string, config?: any) => {
+      return fetchAPI<{
+         success: boolean;
+         preview_url: string;
+      }>(
+         `${BACKEND_URL}/stores/${storeId}/regenerate`,
+         { method: "POST", body: JSON.stringify({ config }) }
       );
    }
 };
@@ -186,6 +261,21 @@ export const apiInventory = {
    getLowStock: async (storeId: string) => {
       requireBase(INVENTORY_BASE_URL, "Inventory");
       return fetchAPI<unknown[]>(`${INVENTORY_BASE_URL}/inventory/${storeId}/low-stock`);
+   },
+
+   updateProduct: async (storeId: string, productId: string, updates: any) => {
+      requireBase(INVENTORY_BASE_URL, "Inventory");
+      return fetchAPI<unknown>(`${INVENTORY_BASE_URL}/inventory/${storeId}/products/${productId}`, {
+         method: "PUT",
+         body: JSON.stringify(updates)
+      });
+   },
+
+   deleteProduct: async (storeId: string, productId: string) => {
+      requireBase(INVENTORY_BASE_URL, "Inventory");
+      return fetchAPI<{ success: boolean }>(`${INVENTORY_BASE_URL}/inventory/${storeId}/products/${productId}`, {
+         method: "DELETE"
+      });
    }
 };
 
@@ -193,7 +283,7 @@ export const apiInventory = {
 export const apiOrders = {
    listOrders: async (storeId: string) => {
       const data = await fetchAPI<{ success?: boolean; orders?: unknown[]; count?: number }>(
-         `${API_BASE_URL}/stores/${storeId}/orders`
+         `${BACKEND_URL}/stores/${storeId}/orders`
       );
       return Array.isArray((data as { orders?: unknown[] }).orders)
          ? (data as { orders: unknown[] }).orders
@@ -202,8 +292,76 @@ export const apiOrders = {
 
    updateOrderStatus: async (orderId: string, status: string) => {
       return fetchAPI<{ success: boolean; order: unknown }>(
-         `${API_BASE_URL}/orders/${orderId}/status`,
+         `${BACKEND_URL}/orders/${orderId}/status`,
          { method: "PUT", body: JSON.stringify({ status }) }
       );
    }
 };
+
+
+// --- DOMAINS ---
+export const apiDomains = {
+   connectDomain: async (storeId: string, domain: string) => {
+      return fetchAPI<{
+         success: boolean;
+         domain: string;
+         dns_records: Array<{ type: string; name: string; value: string }>;
+      }>(
+         `${BACKEND_URL}/stores/${storeId}/domain`,
+         { method: 'POST', body: JSON.stringify({ domain }) }
+      );
+   },
+
+   getDomainStatus: async (storeId: string) => {
+      return fetchAPI<{
+         success: boolean;
+         domain: string;
+         status: 'pending' | 'verified' | 'failed';
+         dns_verified: boolean;
+      }>(
+         `${BACKEND_URL}/stores/${storeId}/domain/status`
+      );
+   },
+
+   verifyDomain: async (storeId: string) => {
+      return fetchAPI<{
+         success: boolean;
+         verified: boolean;
+         message: string;
+      }>(
+         `${BACKEND_URL}/stores/${storeId}/domain/verify`,
+         { method: 'POST' }
+      );
+   }
+};
+
+// --- DELIVERY ---
+export const apiDelivery = {
+   assignOrder: async (orderId: string, agentId: string) => {
+      requireBase(DELIVERY_BASE_URL, "Delivery");
+      return fetchAPI<{ success: true; delivery_id: string }>(
+         `${DELIVERY_BASE_URL}/delivery/orders/${orderId}/assign`,
+         { method: "POST", body: JSON.stringify({ agent_id: agentId }) }
+      );
+   },
+
+   updateStatus: async (deliveryId: string, status: string, location?: any) => {
+      requireBase(DELIVERY_BASE_URL, "Delivery");
+      return fetchAPI<{ success: true }>(
+         `${DELIVERY_BASE_URL}/delivery/${deliveryId}/status`,
+         { method: "PUT", body: JSON.stringify({ status, location }) }
+      );
+   },
+
+   getTracking: async (deliveryId: string) => {
+      requireBase(DELIVERY_BASE_URL, "Delivery");
+      return fetchAPI<any>(`${DELIVERY_BASE_URL}/delivery/${deliveryId}/tracking`);
+   },
+
+   // Agent facing
+   getAssignments: async (agentId: string) => {
+      requireBase(DELIVERY_BASE_URL, "Delivery");
+      return fetchAPI<any>(`${DELIVERY_BASE_URL}/delivery/agent/${agentId}/assignments`);
+   }
+};
+

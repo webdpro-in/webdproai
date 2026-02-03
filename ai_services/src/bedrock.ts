@@ -13,7 +13,7 @@ export class CrossRegionBedrockClient {
   // Configuration from environment variables
   private readonly config = {
     bedrock: {
-      region: process.env.AWS_BEDROCK_REGION || 'us-east-1',
+      region: 'us-east-1', // HARDCODED - Bedrock MUST use us-east-1 for model availability
       models: {
         primary: process.env.AWS_BEDROCK_MODEL_PRIMARY || 'anthropic.claude-3-5-sonnet-20241022-v2:0',
         fallback1: process.env.AWS_BEDROCK_MODEL_FALLBACK_1 || 'anthropic.claude-3-haiku-20240307-v1:0',
@@ -33,10 +33,18 @@ export class CrossRegionBedrockClient {
   };
 
   constructor() {
-    // Bedrock client for AI operations in us-east-1
+    // Validate region configuration
+    if (this.config.bedrock.region !== 'us-east-1') {
+      console.warn(
+        `[Bedrock Client] WARNING: Bedrock region is ${this.config.bedrock.region}, ` +
+        `but should be us-east-1 for model availability`
+      );
+    }
+
+    // Bedrock client for AI operations - MUST use us-east-1
     // Uses default AWS credentials from Lambda execution role
     this.bedrockClient = new BedrockRuntimeClient({
-      region: this.config.bedrock.region,
+      region: 'us-east-1', // Explicit hardcoded region
       maxAttempts: 3,
       retryMode: 'adaptive',
       // Lambda execution role will provide credentials automatically
@@ -50,7 +58,7 @@ export class CrossRegionBedrockClient {
     });
 
     console.log('[Bedrock Client] Initialized with configuration:', {
-      bedrockRegion: this.config.bedrock.region,
+      bedrockRegion: 'us-east-1',
       s3Region: this.config.s3.region,
       primaryModel: this.config.bedrock.models.primary,
       fallbackModels: [
@@ -59,7 +67,7 @@ export class CrossRegionBedrockClient {
         this.config.bedrock.models.fallback3,
       ],
     });
-    console.log(`🌍 Cross-Region Setup: Bedrock (${this.config.bedrock.region}) + S3 (${this.config.s3.region})`);
+    console.log(`🌍 Cross-Region Setup: Bedrock (us-east-1) + S3 (${this.config.s3.region})`);
   }
 
   /**

@@ -1,0 +1,63 @@
+[35m.env.template[m[36m:[mRAZORPAY_KEY_[1;31mSECRET[m="your_razorpay_[1;31msecret[m_here"
+[35m.kiro/specs/fix-ai-generation/design.md[m[36m:[m2. **Frontend to Backend**: Frontend calls `POST /stores/generate` on Backend API with JWT [1;31mtoken[m
+[35m.kiro/specs/fix-ai-generation/design.md[m[36m:[m    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-[1;31mToken[m',
+[35m.kiro/specs/fix-ai-generation/design.md[m[36m:[m  max[1;31mToken[ms: number = 4096
+[35m.kiro/specs/fix-ai-generation/design.md[m[36m:[m        max_[1;31mtoken[ms: max[1;31mToken[ms,
+[35m.kiro/specs/fix-ai-generation/design.md[m[36m:[m    const [1;31mtoken[m = localStorage.getItem("[1;31mtoken[m");
+[35m.kiro/specs/fix-ai-generation/design.md[m[36m:[m          ...([1;31mtoken[m ? { 'Authorization': `Bearer ${[1;31mtoken[m}` } : {}),
+[35m.kiro/specs/fix-ai-generation/design.md[m[36m:[m*For any* authenticated API request from the frontend, if a valid JWT [1;31mtoken[m exists in localStorage, the request should include an Authorization header with the format 'Bearer {[1;31mtoken[m}'.
+[35m.kiro/specs/fix-ai-generation/design.md[m[36m:[m### Property 14: [1;31mToken[m Tenant ID Extraction
+[35m.kiro/specs/fix-ai-generation/design.md[m[36m:[m*For any* valid JWT [1;31mtoken[m containing a 'custom:tenant_id' or 'sub' claim, the Lambda handler should successfully extract the tenant ID; for [1;31mtoken[ms without these claims, the handler should return statusCode 401.
+[35m.kiro/specs/fix-ai-generation/design.md[m[36m:[m   - 401 Unauthorized: Missing or invalid authentication [1;31mtoken[m
+[35m.kiro/specs/fix-ai-generation/design.md[m[36m:[m5. **Authentication**: Cognito [1;31mtoken[ms are validated correctly
+[35m.kiro/specs/fix-ai-generation/design.md[m[36m:[m- [ ] Authentication [1;31mtoken[m is included in requests
+[35m.kiro/specs/fix-ai-generation/requirements.md[m[36m:[m4. WHEN any response is returned, THE System SHALL include Access-Control-Allow-Headers header with Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-[1;31mToken[m
+[35m.kiro/specs/fix-ai-generation/requirements.md[m[36m:[m1. WHEN making an API request, THE Frontend SHALL include the Authorization header with the Cognito JWT [1;31mtoken[m
+[35m.kiro/specs/fix-ai-generation/requirements.md[m[36m:[m1. WHERE Cognito authorizer is configured, WHEN a request is received, THE API_Gateway SHALL validate the JWT [1;31mtoken[m
+[35m.kiro/specs/fix-ai-generation/requirements.md[m[36m:[m2. WHERE Cognito authorizer is configured, WHEN [1;31mtoken[m validation fails, THE API_Gateway SHALL return statusCode 401
+[35m.kiro/specs/fix-ai-generation/requirements.md[m[36m:[m3. WHEN a valid [1;31mtoken[m is provided, THE Lambda_Function SHALL extract the tenant ID from the [1;31mtoken[m claims
+[35m.kiro/specs/fix-ai-generation/requirements.md[m[36m:[m4. WHEN no valid [1;31mtoken[m is provided, THE Lambda_Function SHALL return statusCode 401 with an error message
+[35m.kiro/specs/fix-ai-generation/tasks.md[m[36m:[m    - Test valid Cognito [1;31mtoken[m allows request
+[35m.kiro/specs/fix-ai-generation/tasks.md[m[36m:[m    - Test invalid [1;31mtoken[m returns 401
+[35m.kiro/specs/fix-ai-generation/tasks.md[m[36m:[m    - Test missing [1;31mtoken[m returns 401
+[35m.kiro/specs/webdpro-architectural-analysis/design.md[m[36m:[mAuthorization: Bearer <jwt_[1;31mtoken[m>
+[35m.kiro/specs/webdpro-architectural-analysis/design.md[m[36m:[m    throw new AuthorizationError('Tenant ID not found in [1;31mtoken[m')
+[35m.kiro/specs/webdpro-architectural-analysis/design.md[m[36m:[m    key_[1;31msecret[m: store.razorpayKey[1;31mSecret[m
+[35m.kiro/specs/webdpro-architectural-analysis/design.md[m[36m:[m  [1;31msecret[m: string
+[35m.kiro/specs/webdpro-architectural-analysis/design.md[m[36m:[m    .createHmac('sha256', [1;31msecret[m)
+[35m.kiro/specs/webdpro-architectural-analysis/requirements.md[m[36m:[m- POST /auth/otp/verify - Verify OTP and get [1;31mtoken[ms
+[35m.kiro/specs/webdpro-architectural-analysis/requirements.md[m[36m:[m- [1;31mToken[m counting per request
+[35m.kiro/specs/webdpro-architectural-analysis/requirements.md[m[36m:[m- JWT [1;31mtoken[m-based session management
+[35m.kiro/specs/webdpro-architectural-analysis/requirements.md[m[36m:[m- [1;31mToken[m refresh mechanism
+[35m.kiro/specs/webdpro-architectural-analysis/requirements.md[m[36m:[m- Secure [1;31mtoken[m storage
+[35m.kiro/specs/webdpro-architectural-analysis/requirements.md[m[36m:[m- [1;31mSecret[ms Manager for sensitive data
+[35m.kiro/specs/webdpro-architectural-analysis/requirements.md[m[36m:[m- Automatic [1;31msecret[m rotation
+[35mai_services/package-lock.json[m[36m:[m            "@aws-sdk/[1;31mtoken[m-providers": "3.975.0",
+[35mai_services/package-lock.json[m[36m:[m            "@aws-sdk/[1;31mtoken[m-providers": "3.974.0",
+[35mai_services/package-lock.json[m[36m:[m      "node_modules/@aws-sdk/credential-provider-sso/node_modules/@aws-sdk/[1;31mtoken[m-providers": {
+[35mai_services/package-lock.json[m[36m:[m         "resolved": "https://registry.npmjs.org/@aws-sdk/[1;31mtoken[m-providers/-/[1;31mtoken[m-providers-3.974.0.tgz",
+[35mai_services/package-lock.json[m[36m:[m      "node_modules/@aws-sdk/[1;31mtoken[m-providers": {
+[35mai_services/package-lock.json[m[36m:[m         "resolved": "https://registry.npmjs.org/@aws-sdk/[1;31mtoken[m-providers/-/[1;31mtoken[m-providers-3.975.0.tgz",
+[35mai_services/package-lock.json[m[36m:[m      "node_modules/@aws-sdk/[1;31mtoken[m-providers/node_modules/@aws-sdk/nested-clients": {
+[35mai_services/package-lock.json[m[36m:[m      "node_modules/@[1;31mtoken[mizer/[1;31mtoken[m": {
+[35mai_services/package-lock.json[m[36m:[m         "resolved": "https://registry.npmjs.org/@[1;31mtoken[mizer/[1;31mtoken[m/-/[1;31mtoken[m-0.3.0.tgz",
+[35mai_services/package-lock.json[m[36m:[m            "[1;31mtoken[m-types": "^4.1.1"
+[35mai_services/package-lock.json[m[36m:[m            "@[1;31mtoken[mizer/[1;31mtoken[m": "^0.3.0",
+[35mai_services/package-lock.json[m[36m:[m      "node_modules/[1;31mtoken[m-types": {
+[35mai_services/package-lock.json[m[36m:[m         "resolved": "https://registry.npmjs.org/[1;31mtoken[m-types/-/[1;31mtoken[m-types-4.2.1.tgz",
+[35mai_services/package-lock.json[m[36m:[m            "@[1;31mtoken[mizer/[1;31mtoken[m": "^0.3.0",
+[35mai_services/package-lock.json[m[36m:[m      "node_modules/[1;31mtoken[m-types/node_modules/ieee754": {
+[35mai_services/serverless.yml[m[36m:[m              - X-Amz-Security-[1;31mToken[m
+[35mai_services/serverless.yml[m[36m:[m              - X-Amz-Security-[1;31mToken[m
+[35mai_services/serverless.yml[m[36m:[m              - X-Amz-Security-[1;31mToken[m
+[35mai_services/serverless.yml[m[36m:[m              - X-Amz-Security-[1;31mToken[m
+[35mai_services/serverless.yml[m[36m:[m      - [1;31mAWS_ACCESS[m_KEY_ID
+[35mai_services/serverless.yml[m[36m:[m      - [1;31mAWS_SECRET[m_ACCESS_KEY
+[35mai_services/src/bedrock.ts[m[36m:[m          max_new_[1;31mtoken[ms: options.max[1;31mToken[ms || 4000,
+[35mai_services/src/bedrock.ts[m[36m:[m        max_[1;31mtoken[ms: options.max[1;31mToken[ms || 4000,
+[35mai_services/src/bedrock.ts[m[36m:[m          max[1;31mToken[mCount: options.max[1;31mToken[ms || 4000,
+[35mai_services/src/bedrock.ts[m[36m:[m        max_gen_len: options.max[1;31mToken[ms || 4000,
+[35mai_services/src/bedrock.ts[m[36m:[m    return { prompt, max_[1;31mtoken[ms: options.max[1;31mToken[ms || 4000 };
+[35mai_services/src/bedrock.ts[m[36m:[m      usage: { input_[1;31mtoken[ms: 0, output_[1;31mtoken[ms: template.length },
+[35mai_services/src/bedrock.ts[m[36m:[m  max[1;31mToken[ms?: number;
+[35mai_services/src/handlers/generate.ts[m[36m:[m      'Access-Control-Allow-Headers': 'Content-Type,Autho

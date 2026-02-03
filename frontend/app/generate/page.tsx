@@ -20,29 +20,19 @@ export default function GenerateStorePage() {
       setResult(null);
 
       try {
-         const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-         const headers: Record<string, string> = { "Content-Type": "application/json" };
-         if (token) headers["Authorization"] = `Bearer ${token}`;
-
-         const res = await fetch("/api/generate", {
-            method: "POST",
-            headers,
-            body: JSON.stringify({ prompt: prompt.trim(), storeType, language: "en", currency: "INR" }),
+         const response = await apiStores.generateStore({
+            prompt: prompt.trim(),
+            storeType,
+            language: "en",
+            currency: "INR"
          });
 
-         const data = await res.json().catch(() => ({ success: false, error: "Invalid response from server." }));
-
-         if (res.status === 401) {
-            router.push("/login");
+         if (!response.success || !response.store) {
+            setError("Generation failed.");
             return;
          }
 
-         if (!data.success || !data.data) {
-            setError((data as { error?: string }).error || "Generation failed.");
-            return;
-         }
-
-         setResult((data as { data: unknown }).data);
+         setResult(response.store);
       } catch (err) {
          setError(err instanceof Error ? err.message : "Failed to generate store.");
       } finally {
@@ -127,8 +117,7 @@ export default function GenerateStorePage() {
                         <div className="p-4 bg-red-50 border border-red-200 rounded-xl space-y-1">
                            <p className="text-red-700 text-sm font-medium">{error}</p>
                            <p className="text-red-600 text-xs">
-                              Log in first, then try again.{" "}
-                              <a href="/api/health" target="_blank" rel="noopener noreferrer" className="underline">Check backend</a>.
+                              Please check your connection and try again.
                            </p>
                         </div>
                      )}

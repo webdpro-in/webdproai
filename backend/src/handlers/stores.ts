@@ -5,12 +5,13 @@
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import { S3Client, PutObjectCommand, CopyObjectCommand } from '@aws-sdk/client-s3';
-import { CloudFrontClient, CreateInvalidationCommand } from '@aws-sdk/client-cloudfront';
+import { S3Client, PutObjectCommand, CopyObjectCommand, HeadBucketCommand } from '@aws-sdk/client-s3';
+import { CloudFrontClient, CreateInvalidationCommand, GetDistributionConfigCommand } from '@aws-sdk/client-cloudfront';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 import { v4 as uuidv4 } from 'uuid';
 import { aiClient } from '../lib/ai-client';
 import { logger } from '../lib/logger';
+import { getTenantId, response, APIGatewayEvent } from '../lib/utils';
 
 const dynamoClient = new DynamoDBClient({ region: process.env.AWS_REGION || 'eu-north-1' });
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
@@ -23,47 +24,47 @@ const S3_BUCKET = process.env.S3_BUCKET || 'webdpro-ai';
 const CLOUDFRONT_DIST_ID = process.env.CLOUDFRONT_DISTRIBUTION_ID;
 const EVENTS_TOPIC_ARN = process.env.EVENTS_TOPIC_ARN;
 
-interface APIGatewayEvent {
-   pathParameters?: { storeId?: string };
-   body: string | null;
-   headers?: { Authorization?: string; authorization?: string; [key: string]: string | undefined };
-   requestContext?: { authorizer?: { claims?: { sub: string; 'custom:tenant_id'?: string } } };
-}
 
-// Helper: Create response
-const response = (statusCode: number, body: any) => ({
-   statusCode,
-   headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token',
-      'Access-Control-Allow-Credentials': true,
-   },
-   body: JSON.stringify(body),
-});
+/**
+ * Verify all system prerequisites before generating a store
+ * Fails gracefully if any critical service is unreachable
+ */
+const verifyPrerequisites = async (tenantId: string) => {
+   const checks: Promise<any>[] = [];
 
-// Helper: Get tenant ID from token
-const getTenantId = (event: APIGatewayEvent): string | null => {
-   // Try to get from authorizer first (if configured)
-   const authorizerTenantId = event.requestContext?.authorizer?.claims?.['custom:tenant_id'];
-   if (authorizerTenantId) {
-      return authorizerTenantId;
+   // 1. Verify S3 Write Access
+   checks.push(
+      s3Client.send(new HeadBucketCommand({ Bucket: S3_BUCKET }))
+         .then(() => logger.info('verifyPrerequisites', '✅ S3 Bucket Access Verified'))
+         .catch(err => { throw new Error(`S3 Bucket Access Failed: ${err.message}`) })
+   );
+
+   // 2. Verify CloudFront Access (if configured)
+   if (CLOUDFRONT_DIST_ID) {
+      checks.push(
+         cfClient.send(new GetDistributionConfigCommand({ Id: CLOUDFRONT_DIST_ID }))
+            .then(() => logger.info('verifyPrerequisites', '✅ CloudFront Access Verified'))
+            .catch(err => { throw new Error(`CloudFront Access Failed: ${err.message}`) })
+      );
+   } else {
+      logger.warn('verifyPrerequisites', '⚠️ CloudFront ID not configured - verification skipped');
    }
 
-   // Fallback: decode JWT from Authorization header
-   try {
-      const authHeader = event.headers?.Authorization || event.headers?.authorization;
-      if (!authHeader) return null;
-
-      const token = authHeader.replace('Bearer ', '');
-      const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-      
-      return payload['custom:tenant_id'] || payload.sub || null;
-   } catch (error) {
-      console.error('Error decoding token:', error);
-      return null;
+   // 3. Verify AI Service Configuration
+   if (!process.env.AI_USE_BEDROCK && !process.env.AI_SERVICE_URL) {
+      throw new Error('AI Service Configuration Missing (bedrock or external URL required)');
    }
+
+   // 4. Verify Store Record Table
+   checks.push(
+      docClient.send(new GetCommand({ TableName: STORES_TABLE, Key: { tenant_id: 'check', store_id: 'check' } }))
+         .then(() => logger.info('verifyPrerequisites', '✅ DynamoDB Stores Table Verified'))
+         .catch(err => { throw new Error(`DynamoDB Access Failed: ${err.message}`) })
+   );
+
+   // Execute all checks
+   await Promise.all(checks);
+   logger.info('verifyPrerequisites', 'All system checks passed');
 };
 
 /**
@@ -80,6 +81,18 @@ export const generateStore = async (event: APIGatewayEvent) => {
          logger.warn('generateStore', 'Unauthorized access attempt - tenant not found');
          return response(401, { error: 'Unauthorized - tenant not found' });
       }
+
+      // STRICT VERIFICATION: Verify all connections before proceeding
+      try {
+         await verifyPrerequisites(tenantId);
+      } catch (verifyError: any) {
+         logger.error('generateStore', 'Prerequisite check failed', verifyError, { tenantId });
+         return response(503, {
+            error: 'System prerequisite check failed. Please contact support.',
+            details: verifyError.message
+         });
+      }
+
 
       let body: Record<string, unknown> = {};
       try {
@@ -107,16 +120,71 @@ export const generateStore = async (event: APIGatewayEvent) => {
          storeType: storeType || 'general',
       });
 
+      // STRICT VERIFICATION: Verify all connections before proceeding
+      try {
+         await verifyPrerequisites(tenantId);
+      } catch (verifyError: any) {
+         logger.error('generateStore', 'Prerequisite check failed', verifyError, { tenantId });
+         return response(503, {
+            error: 'System prerequisite check failed. Please contact support.',
+            details: verifyError.message
+         });
+      }
+
       // Create store record (DRAFT status)
+      const isDemo = body.demoMode === true;
+      const demoConfig = {
+         sections: [
+            {
+               id: "navbar",
+               type: "navbar",
+               content: { title: "Lumina" }
+            },
+            {
+               id: "hero",
+               type: "hero",
+               content: {
+                  headline: "Redefine Your Digital Style",
+                  description: "Experience the future of fashion.",
+                  buttonText: "Explore Collection"
+               }
+            },
+            {
+               id: "products",
+               type: "products",
+               content: {
+                  title: "Trending This Week",
+                  products: [
+                     { name: "Minimalist Cotton Tee", price: "1299" },
+                     { name: "Urban Denim Jacket", price: "3499" },
+                     { name: "Classic Sneakers", price: "4999" }
+                  ]
+               }
+            },
+            {
+               id: "features",
+               type: "features",
+               content: { title: "Crafted for Excellence" }
+            },
+            {
+               id: "footer",
+               type: "footer",
+               content: { copyright: "2026 WebDPro AI" }
+            }
+         ]
+      };
+
       const store = {
          tenant_id: tenantId,
          store_id: storeId,
-         status: 'GENERATING',
+         status: isDemo ? 'PUBLISHED' : 'GENERATING',
          prompt,
          store_type: storeType || 'general',
          language,
          currency,
-         domain: null,
+         is_demo: isDemo,
+         config: isDemo ? demoConfig : null,
+         domain: isDemo ? `store-${storeId.substring(0, 8)}.webdpro.in` : null,
          custom_domain: null,
          live_url: null,
          created_at: createdAt,
@@ -128,7 +196,7 @@ export const generateStore = async (event: APIGatewayEvent) => {
             TableName: STORES_TABLE,
             Item: store,
          }));
-         logger.info('generateStore', 'Store record created in DynamoDB', { storeId, tenantId });
+         logger.info('generateStore', 'Store record created in DynamoDB', { storeId, tenantId, isDemo });
       } catch (dbError: any) {
          logger.error('generateStore', 'Failed to create store record in DynamoDB', dbError, {
             tableName: STORES_TABLE,
@@ -136,6 +204,72 @@ export const generateStore = async (event: APIGatewayEvent) => {
             tenantId,
          });
          return response(500, { error: 'Failed to create store record' });
+      }
+
+      if (isDemo) {
+         logger.info('generateStore', 'Demo mode enabled. Copying template and skipping AI.', { storeId });
+
+         const demoSource = 'demo-sites/default-store'; // Path in S3
+         const targetPath = `stores/${storeId}`; // Production path
+
+         try {
+            // Copy index.html
+            await s3Client.send(new CopyObjectCommand({
+               Bucket: S3_BUCKET,
+               CopySource: `${S3_BUCKET}/${demoSource}/index.html`,
+               Key: `${targetPath}/index.html`
+            }));
+
+            // Copy styles.css (optional if exists, index.html might use CDN)
+            // We just copy index.html as per demo template
+
+            // Populate Demo Inventory
+            const pTable = `${process.env.DYNAMODB_TABLE_PREFIX}-products`;
+            const demoProducts = [
+               { name: "Minimalist Cotton Tee", price: 1299, category: "Apparel" },
+               { name: "Urban Denim Jacket", price: 3499, category: "Apparel" },
+               { name: "Classic Sneakers", price: 4999, category: "Footwear" }
+            ];
+
+            await Promise.all(demoProducts.map(p => {
+               const pId = uuidv4();
+               return docClient.send(new PutCommand({
+                  TableName: pTable,
+                  Item: {
+                     tenant_id: tenantId,
+                     product_id: pId,
+                     store_id: storeId,
+                     name: p.name,
+                     price: p.price,
+                     category: p.category,
+                     stock_quantity: 50,
+                     status: 'active',
+                     created_at: new Date().toISOString()
+                  }
+               }));
+            }));
+
+            // Update Store with Live URL
+            const liveUrl = `${process.env.FRONTEND_URL || 'https://d3qhkomcxcxmtl.cloudfront.net'}/${targetPath}/index.html`;
+            // Note: In real prod, CloudFront routes /stores/{id} -> bucket/stores/{id}
+
+            await docClient.send(new UpdateCommand({
+               TableName: STORES_TABLE,
+               Key: { tenant_id: tenantId, store_id: storeId },
+               UpdateExpression: 'SET live_url = :url, preview_url = :url',
+               ExpressionAttributeValues: { ':url': liveUrl }
+            }));
+
+            return response(201, {
+               success: true,
+               message: 'Demo store created',
+               store: { ...store, live_url: liveUrl, status: 'PUBLISHED' }
+            });
+
+         } catch (e: any) {
+            logger.error('generateStore', 'Demo creation failed', e);
+            return response(500, { error: 'Failed to create demo store: ' + e.message });
+         }
       }
 
       // Generate website using AI. Default: mode=fallback (fast, no timeout). Set AI_USE_BEDROCK=true to try Bedrock.

@@ -159,6 +159,16 @@ functions:
               - X-Amz-User-Agent
             allowCredentials: false
 
+  # Health Check
+  ping:
+    handler: src/handlers/health.ping
+    events:
+      - http:
+          path: /ai/health
+          method: get
+          cors: true
+
+
 resources:
   Resources:
     # CloudWatch Alarm for Lambda errors

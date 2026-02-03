@@ -152,3 +152,6 @@ export const listOrders = async (event: any) => {
       return response(500, { error: 'Failed to list orders' });
    }
 }
+
+
+export const ping = async () => response(200, { status: 'ok', service: 'orders', timestamp: new Date().toISOString() });

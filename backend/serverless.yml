@@ -24,6 +24,8 @@ provider:
         - http://localhost:3000
         - https://d3qhkomcxcxmtl.cloudfront.net
         - https://ai-gamma-rose.vercel.app
+        - https://main.d31s5vazm93jhm.amplifyapp.com
+        - https://webdpro.in
         - ${env:FRONTEND_URL, 'http://localhost:3000'}
       allowedHeaders:
         - Content-Type
@@ -68,8 +70,10 @@ provider:
     WEBDPRO_RAZORPAY_KEY_ID: ${env:RAZORPAY_KEY_ID, 'test_key'}
     WEBDPRO_RAZORPAY_KEY_SECRET: ${env:RAZORPAY_KEY_SECRET, 'test_secret'}
     EVENTS_TOPIC_ARN: !Ref WebDProEventsTopic
-    AI_SERVICE_URL: https://l0wi495th5.execute-api.eu-north-1.amazonaws.com/dev
-    AI_USE_BEDROCK: ${env:AI_USE_BEDROCK, 'false'}
+    # PHASE 1: Use production AI service URL with Bedrock enabled
+    # PHASE 2: Keep production URL
+    AI_SERVICE_URL: ${env:AI_SERVICE_URL, 'https://l0wi495th5.execute-api.eu-north-1.amazonaws.com/dev'}
+    AI_USE_BEDROCK: ${env:AI_USE_BEDROCK, 'true'}
     S3_BUCKET: webdpro-ai-storage-dev
     CLOUDFRONT_DISTRIBUTION_ID: ${env:CLOUDFRONT_DISTRIBUTION_ID, ''}
 
@@ -172,8 +176,9 @@ functions:
       - httpApi:
           path: /auth/profile
           method: get
-          authorizer:
-            name: cognitoAuthorizer
+          # PHASE 2: Uncomment for production
+          # authorizer:
+          #   name: cognitoAuthorizer
     environment:
       COGNITO_USER_POOL_ID: !Ref CognitoUserPoolWebDProUserPoolV3
       COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
@@ -188,7 +193,9 @@ functions:
   verifyAuthChallengeResponse:
     handler: src/handlers/auth_triggers.verifyAuthChallengeResponse
 
-  # Store Functions (Protected - require JWT authorization)
+  # Store Functions
+  # PHASE 1: Auth completely disabled for local dev testing
+  # PHASE 2: Restore cognitoAuthorizer for production
   generateStore:
     handler: src/handlers/stores.generateStore
     timeout: 60
@@ -197,8 +204,9 @@ functions:
       - httpApi:
           path: /stores/generate
           method: post
-          authorizer:
-            name: cognitoAuthorizer
+          # PHASE 2: Uncomment for production
+          # authorizer:
+          #   name: cognitoAuthorizer
 
   getStores:
     handler: src/handlers/stores.getStores
@@ -206,8 +214,9 @@ functions:
       - httpApi:
           path: /stores
           method: get
-          authorizer:
-            name: cognitoAuthorizer
+          # PHASE 2: Uncomment for production
+          # authorizer:
+          #   name: cognitoAuthorizer
 
   getStore:
     handler: src/handlers/stores.getStore
@@ -215,8 +224,9 @@ functions:
       - httpApi:
           path: /stores/{storeId}
           method: get
-          authorizer:
-            name: cognitoAuthorizer
+          # PHASE 2: Uncomment for production
+          # authorizer:
+          #   name: cognitoAuthorizer
 
   publishStore:
     handler: src/handlers/stores.publishStore
@@ -224,8 +234,9 @@ functions:
       - httpApi:
           path: /stores/{storeId}/publish
           method: post
-          authorizer:
-            name: cognitoAuthorizer
+          # PHASE 2: Uncomment for production
+          # authorizer:
+          #   name: cognitoAuthorizer
 
   updateStore:
     handler: src/handlers/stores.updateStore
@@ -233,18 +244,31 @@ functions:
       - httpApi:
           path: /stores/{storeId}
           method: put
-          authorizer:
-            name: cognitoAuthorizer
+          # PHASE 2: Uncomment for production
+          # authorizer:
+          #   name: cognitoAuthorizer
 
-  # Domain Management (Protected - require JWT authorization)
+  regenerateStore:
+    handler: src/handlers/regenerate.regenerateStore
+    timeout: 60
+    events:
+      - httpApi:
+          path: /stores/{storeId}/regenerate
+          method: post
+
+
+  # Domain Management
+  # PHASE 1: Auth disabled for local dev
+  # PHASE 2: Restore cognitoAuthorizer for production
   connectDomain:
     handler: src/handlers/domains.connectDomain
     events:
       - httpApi:
           path: /stores/{storeId}/domain
           method: post
-          authorizer:
-            name: cognitoAuthorizer
+          # PHASE 2: Uncomment for production
+          # authorizer:
+          #   name: cognitoAuthorizer
 
   getDomainStatus:
     handler: src/handlers/domains.getDomainStatus
@@ -252,8 +276,9 @@ functions:
       - httpApi:
           path: /stores/{storeId}/domain/status
           method: get
-          authorizer:
-            name: cognitoAuthorizer
+          # PHASE 2: Uncomment for production
+          # authorizer:
+          #   name: cognitoAuthorizer
 
   verifyDomain:
     handler: src/handlers/domains.verifyDomain
@@ -261,18 +286,22 @@ functions:
       - httpApi:
           path: /stores/{storeId}/domain/verify
           method: post
-          authorizer:
-            name: cognitoAuthorizer
+          # PHASE 2: Uncomment for production
+          # authorizer:
+          #   name: cognitoAuthorizer
 
-  # Order Management (Protected - require JWT authorization)
+  # Order Management
+  # PHASE 1: Auth disabled for local dev
+  # PHASE 2: Restore cognitoAuthorizer for production
   createOrder:
     handler: src/handlers/orders.createOrder
     events:
       - httpApi:
           path: /stores/{storeId}/orders
           method: post
-          authorizer:
-            name: cognitoAuthorizer
+          # PHASE 2: Uncomment for production
+          # authorizer:
+          #   name: cognitoAuthorizer
 
   getOrder:
     handler: src/handlers/orders.getOrder
@@ -280,8 +309,9 @@ functions:
       - httpApi:
           path: /orders/{orderId}
           method: get
-          authorizer:
-            name: cognitoAuthorizer
+          # PHASE 2: Uncomment for production
+          # authorizer:
+          #   name: cognitoAuthorizer
 
   getStoreOrders:
     handler: src/handlers/orders.getStoreOrders
@@ -289,8 +319,9 @@ functions:
       - httpApi:
           path: /stores/{storeId}/orders
           method: get
-          authorizer:
-            name: cognitoAuthorizer
+          # PHASE 2: Uncomment for production
+          # authorizer:
+          #   name: cognitoAuthorizer
 
   updateOrderStatus:
     handler: src/handlers/orders.updateOrderStatus
@@ -298,8 +329,18 @@ functions:
       - httpApi:
           path: /orders/{orderId}/status
           method: put
-          authorizer:
-            name: cognitoAuthorizer
+          # PHASE 2: Uncomment for production
+          # authorizer:
+          #   name: cognitoAuthorizer
+
+
+  # Health Check
+  ping:
+    handler: src/handlers/health.ping
+    events:
+      - httpApi:
+          path: /health
+          method: get
 
 plugins:
   - serverless-plugin-typescript
@@ -318,6 +359,12 @@ custom:
       - AWS_ACCESS_KEY_ID
       - AWS_SECRET_ACCESS_KEY
       - AWS_REGION
+  
+  # Serverless Offline configuration for local development
+  serverless-offline:
+    httpPort: 3001
+    lambdaPort: 3002
+    websocketPort: 3003
 
 # Add Gateway Responses to ensure CORS headers on ALL responses including errors
 # Note: HTTP API (v2) handles CORS automatically based on httpApi.cors configuration
@@ -452,6 +499,7 @@ resources:
           - https://ai-gamma-rose.vercel.app/auth/callback
           - https://main.d2bj5ckg0v1gci.amplifyapp.com/auth/callback
           - https://main.d31s5vazm93jhm.amplifyapp.com/auth/callback
+          - https://webdpro.in/auth/callback
           - ${env:COGNITO_CALLBACK_URL, 'http://localhost:3000/auth/callback'}
         LogoutURLs:
           - http://localhost:3000
@@ -459,6 +507,7 @@ resources:
           - https://ai-gamma-rose.vercel.app
           - https://main.d2bj5ckg0v1gci.amplifyapp.com
           - https://main.d31s5vazm93jhm.amplifyapp.com
+          - https://webdpro.in
           - ${env:COGNITO_LOGOUT_URL, 'http://localhost:3000'}
         ExplicitAuthFlows:
           - ALLOW_CUSTOM_AUTH

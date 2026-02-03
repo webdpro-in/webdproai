@@ -48,7 +48,7 @@ try {
                "NEXT_PUBLIC_COGNITO_CLIENT_ID=7g6sqvvnqsg628napds0k73190," +
                "NEXT_PUBLIC_COGNITO_DOMAIN=webdpro-auth-prod-2026," +
                "NEXT_PUBLIC_COGNITO_REGION=eu-north-1," +
-               "NEXT_PUBLIC_RAZORPAY_KEY_ID=rzp_live_A9O3Qt84a8YKnc," +
+               "NEXT_PUBLIC_RAZORPAY_KEY_ID=<your-razorpay-key-id>," +
                "NEXT_PUBLIC_APP_URL=$AmplifyUrl"
 
     aws amplify update-app --app-id $AppId --environment-variables $envVars --no-cli-pager

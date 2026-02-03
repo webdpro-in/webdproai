@@ -1,169 +1,22 @@
-"use client"
+'use client';
 
-import { PromptBox } from "@/components/ui/PromptBox"
-import { Button } from "@/components/ui/Button"
-import { useSearchParams, useRouter } from "next/navigation"
-import { useState, useEffect, Suspense } from "react"
-import { ArrowLeft, CheckCircle2, Loader2, Sparkles } from "lucide-react"
-import { cn } from "@/lib/utils" // Ensure utils exists or inline
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
-function CreateWebsiteContent() {
-   const router = useRouter()
-   const searchParams = useSearchParams()
-   const initialPrompt = searchParams.get("prompt") || ""
-
-   const [isGenerating, setIsGenerating] = useState(false)
-   const [generationStep, setGenerationStep] = useState(0)
-   const [error, setError] = useState<string | null>(null)
-
-   // Auto-start if prompt is present
-   useEffect(() => {
-      if (initialPrompt && !isGenerating) {
-         handleGenerate(decodeURIComponent(initialPrompt))
-      }
-   }, [initialPrompt])
-
-   const steps = [
-      "Analyzing business requirements...",
-      "Designing storefront UI/UX...",
-      "Generating product inventory schema...",
-      "Configuring payment gateways...",
-      "Finalizing deployment..."
-   ]
-
-   const handleGenerate = async (prompt: string) => {
-      setIsGenerating(true)
-      setGenerationStep(0)
-
-      // Start Animation
-      const interval = setInterval(() => {
-         setGenerationStep(prev => (prev < steps.length - 1 ? prev + 1 : prev))
-      }, 1500)
-
-      setError(null)
-      try {
-         const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
-         const headers: Record<string, string> = { "Content-Type": "application/json" }
-         if (token) headers["Authorization"] = `Bearer ${token}`
-
-         const response = await fetch("/api/generate", {
-            method: "POST",
-            headers,
-            body: JSON.stringify({ prompt })
-         });
-
-         const result = await response.json().catch(() => ({ success: false, error: "Invalid response from server." }));
-
-         if (response.status === 401) {
-            clearInterval(interval)
-            setIsGenerating(false)
-            router.push("/login")
-            return
-         }
-
-         if (result.success && result.data) {
-            clearInterval(interval)
-            setGenerationStep(steps.length)
-
-            const configString = encodeURIComponent(JSON.stringify(result.data));
-            setTimeout(() => {
-               router.push(`/dashboard/owner/editor/new-site?config=${configString}`)
-            }, 800)
-            return
-         }
-
-         setError((result as { error?: string }).error || "Generation failed")
-         clearInterval(interval)
-         setIsGenerating(false)
-      } catch (err) {
-         console.error("Generation failed", err)
-         setError(err instanceof Error ? err.message : "Generation failed")
-         clearInterval(interval)
-         setIsGenerating(false)
-      }
-   }
-
-
-   return (
-      <div className="min-h-screen bg-black text-white p-8 mb-20">
-         <div className="max-w-4xl mx-auto space-y-8">
-            <Button variant="ghost" className="text-gray-400" onClick={() => router.back()}>
-               <ArrowLeft className="w-4 h-4 mr-2" />
-               Back to Dashboard
-            </Button>
-
-            <div className="text-center space-y-4 mb-12">
-               <h1 className="text-4xl font-bold">Create New Business</h1>
-               <p className="text-gray-400">Describe your business, and our AI will build the entire operation in minutes.</p>
-            </div>
-
-            {error && (
-               <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
-                  {error}
-               </div>
-            )}
-            {!isGenerating ? (
-               <div className="py-12">
-                  <PromptBox onSubmit={handleGenerate} />
-               </div>
-            ) : (
-               <div className="max-w-xl mx-auto bg-gray-900/50 border border-gray-800 rounded-2xl p-8 backdrop-blur-xl">
-                  <div className="flex justify-center mb-8">
-                     <div className="relative">
-                        <div className="absolute inset-0 bg-indigo-500 blur-xl opacity-50 animate-pulse" />
-                        <div className="relative w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
-                           <Sparkles className="w-8 h-8 text-white animate-spin-slow" />
-                        </div>
-                     </div>
-                  </div>
-
-                  <h3 className="text-xl font-medium text-center text-white mb-8">
-                     Building your platform...
-                  </h3>
-
-                  <div className="space-y-6">
-                     {steps.map((step, index) => (
-                        <div key={index} className="flex items-center gap-4">
-                           <div className={cn(
-                              "w-6 h-6 rounded-full flex items-center justify-center border transition-all duration-500",
-                              index < generationStep
-                                 ? "bg-green-500/20 border-green-500 text-green-500"
-                                 : index === generationStep
-                                    ? "border-indigo-500 text-indigo-500 animate-pulse"
-                                    : "border-gray-800 text-gray-700"
-                           )}>
-                              {index < generationStep ? (
-                                 <CheckCircle2 className="w-4 h-4" />
-                              ) : index === generationStep ? (
-                                 <Loader2 className="w-3 h-3 animate-spin" />
-                              ) : (
-                                 <div className="w-2 h-2 rounded-full bg-current" />
-                              )}
-                           </div>
-                           <span className={cn(
-                              "text-sm transition-colors duration-300",
-                              index <= generationStep ? "text-gray-200" : "text-gray-600"
-                           )}>
-                              {step}
-                           </span>
-                        </div>
-                     ))}
-                  </div>
-               </div>
-            )}
-         </div>
+// Legacy route - redirect to canonical /dashboard/sites/new
+export default function OwnerCreateRedirect() {
+  const router = useRouter();
+  
+  useEffect(() => {
+    router.replace('/dashboard/sites/new');
+  }, [router]);
+  
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+        <p className="text-gray-600">Redirecting to Create Site...</p>
       </div>
-   )
-}
-
-export default function CreateWebsitePage() {
-   return (
-      <Suspense fallback={
-         <div className="min-h-screen bg-black text-white p-8 flex items-center justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-         </div>
-      }>
-         <CreateWebsiteContent />
-      </Suspense>
-   )
+    </div>
+  );
 }

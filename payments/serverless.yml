@@ -117,5 +117,14 @@ functions:
               - X-Amz-User-Agent
             allowCredentials: false
 
+  # Health Check
+  ping:
+    handler: src/health.ping
+    events:
+      - http:
+          path: /payments/health
+          method: get
+          cors: true
+
 plugins:
   - serverless-plugin-typescript

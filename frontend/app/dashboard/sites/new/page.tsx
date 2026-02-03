@@ -1,18 +1,30 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect } from "react";
 import { Loader2, Wand2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { apiStores } from "@/lib/api";
 
 export default function CreateSitePage() {
    const router = useRouter();
+   const searchParams = useSearchParams();
    const [loading, setLoading] = useState(false);
    const [formData, setFormData] = useState({
       businessName: "",
       description: "",
       theme: "modern", // 'modern' | 'playful' | 'elegant'
    });
+
+   // Auto-fill from URL prompt
+   useEffect(() => {
+      const promptParam = searchParams.get('prompt');
+      if (promptParam) {
+         setFormData(prev => ({ ...prev, description: decodeURIComponent(promptParam) }));
+      }
+   }, [searchParams]);
+
    const [error, setError] = useState<string | null>(null);
 
    const handleSubmit = async (e: React.FormEvent) => {
@@ -27,35 +39,27 @@ export default function CreateSitePage() {
             `Style: ${formData.theme}.`
          ].filter(Boolean).join(" ");
 
-         const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-         const headers: Record<string, string> = { "Content-Type": "application/json" };
-         if (token) headers["Authorization"] = `Bearer ${token}`;
-
-         const res = await fetch("/api/generate", {
-            method: "POST",
-            headers,
-            body: JSON.stringify({
-               prompt,
-               storeType: "general",
-               language: "en",
-               currency: "INR"
-            })
+         const result = await apiStores.generateStore({
+            prompt,
+            storeType: "general",
+            language: "en",
+            currency: "INR"
          });
 
-         const result = await res.json().catch(() => ({ success: false, error: "Invalid response from server." }));
-
-         if (res.status === 401) {
-            router.push("/login");
+         if (!result.success || !result.store) {
+            setError("Generation failed.");
             return;
          }
 
-         if (!result.success || !result.data) {
-            setError((result as { error?: string }).error || "Generation failed.");
-            return;
-         }
+         console.log('[CreateSite] Generation successful:', {
+            storeId: result.store.store_id,
+            configSections: result.store.config?.sections?.length || 0,
+            businessName: result.store.config?.name || result.store.config?.businessName,
+            businessType: result.store.config?.businessType || result.store.config?.storeType
+         });
 
-         const configString = encodeURIComponent(JSON.stringify(result.data));
-         router.push(`/dashboard/owner/editor/new-site?config=${configString}`);
+         const configString = encodeURIComponent(JSON.stringify(result.store.config));
+         router.push(`/dashboard/sites/${result.store.store_id}/editor?config=${configString}`);
       } catch (err) {
          console.error("Generation failed:", err);
          setError(err instanceof Error ? err.message : "Failed to generate website. Please try again.");
@@ -82,9 +86,9 @@ export default function CreateSitePage() {
                      <div className="absolute inset-0 bg-indigo-100 rounded-full blur-xl animate-pulse" />
                      <Wand2 className="h-14 w-14 sm:h-16 sm:w-16 text-indigo-600 relative z-10 animate-pulse" />
                   </div>
-                  <h3 className="mt-6 text-lg sm:text-xl font-bold text-gray-900">Generating your website…</h3>
+                  <h3 className="mt-6 text-lg sm:text-xl font-bold text-gray-900">Checking system readiness...</h3>
                   <p className="text-gray-500 mt-2 max-w-sm text-sm sm:text-base">
-                     Designing layout, copy, and visuals. This usually takes a few seconds.
+                     Verifying connections to AI, Database, and Storage. Generation will begin shortly.
                   </p>
                   <div className="w-full max-w-xs sm:w-64 bg-gray-100 rounded-full h-2 mt-8 overflow-hidden">
                      <div className="bg-indigo-600 h-2 rounded-full w-1/4 animate-progress-indeterminate" />
@@ -96,8 +100,7 @@ export default function CreateSitePage() {
                      <div className="p-4 rounded-lg bg-red-50 border border-red-200 space-y-1">
                         <p className="text-red-700 text-sm font-medium">{error}</p>
                         <p className="text-red-600 text-xs">
-                           Log in first, then try again.{" "}
-                           <a href="/api/health" target="_blank" rel="noopener noreferrer" className="underline">Check backend</a>.
+                           Please check your connection and try again.
                         </p>
                      </div>
                   )}

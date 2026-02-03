@@ -96,6 +96,26 @@ export class AIServiceClient {
          details: lastError?.message || 'Unknown error',
       };
    }
+   async generateCode(spec: any, tenantId: string, storeId: string): Promise<{ success: boolean; data?: any; error?: string }> {
+      try {
+         console.log(`[AI Client] Requesting code regeneration for ${storeId}`);
+         const response = await fetch(`${this.baseUrl}/ai/code`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ spec, tenantId, storeId }),
+         });
+
+         const responseText = await response.text();
+         if (!response.ok) {
+            throw new Error(`AI service (code) returned ${response.status}: ${responseText.slice(0, 500)}`);
+         }
+
+         return JSON.parse(responseText);
+      } catch (error: any) {
+         console.error('[AI Client] Code generation failed:', error.message);
+         return { success: false, error: error.message };
+      }
+   }
 }
 
 export const aiClient = new AIServiceClient();

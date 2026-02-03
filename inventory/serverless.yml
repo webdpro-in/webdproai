@@ -9,7 +9,7 @@ provider:
   environment:
     DYNAMODB_TABLE_PREFIX: webdpro
     AWS_NODEJS_CONNECTION_REUSE_ENABLED: "1"
-    EVENTS_TOPIC_ARN: ${env:EVENTS_TOPIC_ARN, 'arn:aws:sns:eu-north-1:941172143855:webdpro-events-dev'}
+    EVENTS_TOPIC_ARN: ${env:EVENTS_TOPIC_ARN, 'arn:aws:sns:${self:provider.region}:${aws:accountId}:webdpro-events-${self:provider.stage}'}
   iam:
     role:
       statements:
@@ -33,7 +33,7 @@ provider:
         - Effect: Allow
           Action:
             - sns:Publish
-          Resource: "${env:EVENTS_TOPIC_ARN, 'arn:aws:sns:eu-north-1:941172143855:webdpro-events-dev'}"
+          Resource: "${self:provider.environment.EVENTS_TOPIC_ARN}"
 
 
 package:
@@ -43,6 +43,15 @@ package:
     - '!test/**'
 
 functions:
+  # Health Check
+  ping:
+    handler: src/handlers/health.ping
+    events:
+      - http:
+          path: /inventory/health
+          method: get
+          cors: true
+
   # Product CRUD
   getProducts:
     handler: src/handlers/products.getProducts
@@ -158,14 +167,27 @@ functions:
     handler: src/handlers/events.handleEvents
     events:
       - sns:
-          arn: ${env:EVENTS_TOPIC_ARN, 'arn:aws:sns:eu-north-1:941172143855:webdpro-events-dev'}
+          arn: ${self:provider.environment.EVENTS_TOPIC_ARN}
           filterPolicy:
             eventType:
               - ORDER_PLACED
               - ORDER_CANCELLED
 
+resources:
+  Outputs:
+    WebdproInventoryServiceUrl:
+      Value:
+        Fn::Join:
+          - ""
+          - - "https://"
+            - Ref: ApiGatewayRestApi
+            - ".execute-api.${self:provider.region}.amazonaws.com/${self:provider.stage}"
+      Export:
+        Name: WebdproInventoryServiceUrl
+
 plugins:
   - serverless-plugin-typescript
+
 
 custom:
   serverless-plugin-typescript:

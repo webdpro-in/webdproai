@@ -35,7 +35,8 @@ export async function generateCode(spec: SiteSpec): Promise<GeneratedCode> {
     4. Make it look premium, using glassmorphism, nice padding, and modern typography (Inter font).
     5. Include proper meta tags, viewport settings, and semantic HTML5 elements.
     6. Ensure all HTML is valid and properly closed.
-    7. Return ONLY the full HTML code. No explaining.
+    7. IMPORTANT: For every section, you MUST add a 'data-section-id' attribute matching the section ID from the JSON (e.g., <section data-section-id="hero">).
+    8. Return ONLY the full HTML code. No explaining.
   `;
 
    try {
@@ -55,10 +56,10 @@ export async function generateCode(spec: SiteSpec): Promise<GeneratedCode> {
 
       // Extract HTML if model wrapped it in backticks or code blocks
       let cleanHtml = html;
-      
+
       // Remove markdown code blocks
       cleanHtml = cleanHtml.replace(/```html\n?/g, '').replace(/```\n?/g, '');
-      
+
       // Extract HTML document
       const htmlMatch = cleanHtml.match(/<!DOCTYPE html>[\s\S]*<\/html>/) || cleanHtml.match(/<html[\s\S]*<\/html>/);
       if (htmlMatch) {
@@ -105,7 +106,7 @@ export async function generateCode(spec: SiteSpec): Promise<GeneratedCode> {
 
    } catch (error) {
       console.error("Code generation failed:", error);
-      
+
       // Fallback: Generate basic HTML template
       console.log("Using fallback HTML template...");
       return {

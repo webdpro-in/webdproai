@@ -11,10 +11,19 @@ export default function Home() {
 
    const handleGenerate = (prompt: string) => {
       setIsGenerating(true);
+      // Save prompt for after login
+      localStorage.setItem('pending_prompt', prompt);
+
       setTimeout(() => {
-         const encodedPrompt = encodeURIComponent(prompt);
-         router.push(`/login?intent=generate&prompt=${encodedPrompt}`);
-      }, 1500);
+         // Check if already logged in (simple check)
+         const token = localStorage.getItem('token');
+         if (token) {
+            const encodedPrompt = encodeURIComponent(prompt);
+            router.push(`/dashboard/sites/new?prompt=${encodedPrompt}`);
+         } else {
+            router.push('/login');
+         }
+      }, 1000);
    };
 
    return (

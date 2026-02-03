@@ -15,7 +15,15 @@ import {
    X,
    Building2,
    CreditCard,
-   AlertCircle
+   AlertCircle,
+   Bell,
+   BookOpen,
+   Bookmark,
+   Puzzle,
+   HelpCircle,
+   ChevronDown,
+   ChevronRight,
+   User
 } from "lucide-react";
 
 interface UserProfile {
@@ -34,11 +42,25 @@ export default function DashboardLayout({
    const router = useRouter();
    const pathname = usePathname();
    const [isSidebarOpen, setSidebarOpen] = useState(true);
+   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
    const [user, setUser] = useState<UserProfile | null>(null);
+   const [openDropdowns, setOpenDropdowns] = useState<string[]>([]);
+
+   // Check if we're in the editor - hide dashboard UI
+   const isEditorRoute = pathname?.includes('/editor/')
 
    // Promo Code State
    const [isPromoVerified, setIsPromoVerified] = useState(false);
    const [checked, setChecked] = useState(false);
+
+   // Toggle dropdown
+   const toggleDropdown = (name: string) => {
+      setOpenDropdowns(prev =>
+         prev.includes(name)
+            ? prev.filter(item => item !== name)
+            : [...prev, name]
+      );
+   };
 
    useEffect(() => {
       // Check promo code status
@@ -66,15 +88,26 @@ export default function DashboardLayout({
    const navItems = [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { label: "My Websites", href: "/dashboard/sites", icon: Store },
-      { label: "Orders", href: "/dashboard/orders", icon: ShoppingBag },
-      { label: "Inventory", href: "/dashboard/inventory", icon: Package },
+      { label: "Resources", href: "/dashboard/resources", icon: BookOpen },
+      {
+         label: "Bookmarks",
+         icon: Bookmark,
+         dropdown: [
+            { label: "Saved Items", href: "/dashboard/bookmarks/saved" },
+            { label: "Collections", href: "/dashboard/bookmarks/collections" },
+            { label: "Recent", href: "/dashboard/bookmarks/recent" }
+         ]
+      },
+      { label: "Extensions", href: "/dashboard/extensions", icon: Puzzle },
       { label: "Settings", href: "/dashboard/settings", icon: Settings },
+      { label: "Support", href: "/dashboard/support", icon: HelpCircle },
    ];
 
    const handleLogout = () => {
       localStorage.removeItem("token");
       localStorage.removeItem("refresh_token");
-      localStorage.removeItem("promo_verified"); // Clear promo access on logout
+      localStorage.removeItem("promo_verified");
+      localStorage.removeItem("user");
       router.push("/login");
    };
 
@@ -86,93 +119,147 @@ export default function DashboardLayout({
       return <PromoCodeBarrier onSuccess={() => setIsPromoVerified(true)} />;
    }
 
+   // Editor route - full screen, no dashboard UI
+   if (isEditorRoute) {
+      return <div className="min-h-screen">{children}</div>
+   }
+
    return (
-      <div className="min-h-screen bg-gray-50 flex pt-[73px]">
+      <div className="min-h-screen bg-gray-50 flex font-[family-name:var(--font-poppins)]">
          {/* Sidebar */}
          <aside
-            className={`fixed inset-y-0 left-0 z-[60] w-64 bg-white border-r border-gray-200 transform transition-transform duration-200 ease-in-out ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"
-               } lg:fixed lg:top-[73px] lg:bottom-0 lg:h-[calc(100vh-73px)] lg:translate-x-0 lg:z-40`}
+            className={`fixed inset-y-0 left-0 z-50 bg-white border-r border-gray-200 transition-all duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+               } ${isSidebarCollapsed ? 'w-20' : 'w-72'
+               } lg:translate-x-0 shadow-lg dashboard-sidebar`}
          >
             <div className="h-full flex flex-col">
-               <div className="h-16 flex items-center px-6 border-b border-gray-100 lg:hidden">
-                  <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-violet-600">
-                     Webdpro
-                  </span>
+               {/* Logo/Brand */}
+               <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200">
+                  {!isSidebarCollapsed && (
+                     <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-violet-600">
+                        Webdpro
+                     </span>
+                  )}
                   <button
-                     className="ml-auto lg:hidden"
+                     onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                     className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900 hidden lg:block"
+                  >
+                     {isSidebarCollapsed ? <ChevronRight className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                  </button>
+                  <button
+                     className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900 lg:hidden"
                      onClick={() => setSidebarOpen(false)}
                   >
-                     <X className="h-5 w-5 text-gray-500" />
+                     <X className="h-5 w-5" />
                   </button>
                </div>
 
-               <nav className="flex-1 p-4 space-y-1">
+               {/* User Profile Section */}
+               {user && (
+                  <div className={`p-4 border-b border-gray-200 ${isSidebarCollapsed ? 'flex justify-center' : ''}`}>
+                     {isSidebarCollapsed ? (
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center text-white font-semibold">
+                           {user.name?.charAt(0) || 'U'}
+                        </div>
+                     ) : (
+                        <div className="flex items-center gap-3">
+                           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center text-white font-semibold">
+                              {user.name?.charAt(0) || 'U'}
+                           </div>
+                           <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-gray-900 truncate">{user.name}</p>
+                              <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                           </div>
+                        </div>
+                     )}
+                  </div>
+               )}
+
+               {/* Navigation */}
+               <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
                   {navItems.map((item) => {
                      const isActive = pathname === item.href;
                      const Icon = item.icon;
+                     const hasDropdown = item.dropdown && item.dropdown.length > 0;
+                     const isDropdownOpen = openDropdowns.includes(item.label);
+
                      return (
-                        <Link
-                           key={item.href}
-                           href={item.href}
-                           className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${isActive
-                              ? "bg-indigo-50 text-indigo-700"
-                              : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
-                              }`}
-                        >
-                           <Icon className={`h-5 w-5 mr-3 ${isActive ? "text-indigo-600" : "text-gray-400"}`} />
-                           {item.label}
-                        </Link>
+                        <div key={item.label}>
+                           {hasDropdown ? (
+                              <button
+                                 onClick={() => toggleDropdown(item.label)}
+                                 className={`w-full flex items-center justify-between px-3 py-3 text-sm font-medium rounded-lg transition-all ${isActive
+                                    ? "bg-indigo-50 text-indigo-700 shadow-sm"
+                                    : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                                    } ${isSidebarCollapsed ? 'justify-center' : ''}`}
+                              >
+                                 <div className="flex items-center gap-3">
+                                    <Icon className={`h-5 w-5 shrink-0 ${isActive ? 'text-indigo-600' : 'text-gray-500'}`} />
+                                    {!isSidebarCollapsed && <span>{item.label}</span>}
+                                 </div>
+                                 {!isSidebarCollapsed && (
+                                    <ChevronDown className={`h-4 w-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                                 )}
+                              </button>
+                           ) : (
+                              <Link
+                                 href={item.href || '#'}
+                                 className={`flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-all ${isActive
+                                    ? "bg-indigo-50 text-indigo-700 shadow-sm"
+                                    : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                                    } ${isSidebarCollapsed ? 'justify-center' : ''}`}
+                              >
+                                 <Icon className={`h-5 w-5 shrink-0 ${isActive ? 'text-indigo-600' : 'text-gray-500'}`} />
+                                 {!isSidebarCollapsed && <span className="ml-3">{item.label}</span>}
+                              </Link>
+                           )}
+
+                           {/* Dropdown Menu */}
+                           {hasDropdown && isDropdownOpen && !isSidebarCollapsed && (
+                              <div className="ml-8 mt-1 space-y-1 animate-in slide-in-from-top-2 duration-200">
+                                 {item.dropdown?.map((subItem) => (
+                                    <Link
+                                       key={subItem.href}
+                                       href={subItem.href}
+                                       className="block px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors"
+                                    >
+                                       {subItem.label}
+                                    </Link>
+                                 ))}
+                              </div>
+                           )}
+                        </div>
                      );
                   })}
                </nav>
 
-               <div className="p-4 border-t border-gray-100 space-y-3">
-                  {/* Tenant Info */}
-                  {user && (
-                     <div className="space-y-2">
-                        <div className="p-3 bg-gray-50 rounded-lg">
-                           <div className="flex items-center gap-2 mb-1">
-                              <Building2 className="w-3.5 h-3.5 text-gray-500" />
-                              <p className="text-xs text-gray-500 font-medium">Tenant ID</p>
-                           </div>
-                           <p className="text-xs font-mono font-medium text-gray-700 truncate pl-5">
-                              {user.tenant_id || "N/A"}
-                           </p>
-                        </div>
-
-                        <div className="p-3 bg-gray-50 rounded-lg">
-                           <div className="flex items-center gap-2 mb-1">
-                              <CreditCard className="w-3.5 h-3.5 text-gray-500" />
-                              <p className="text-xs text-gray-500 font-medium">Razorpay Status</p>
-                           </div>
-                           <div className="flex items-center justify-between pl-5">
-                              <div className="flex items-center gap-1.5">
-                                 <AlertCircle className="w-3 h-3 text-amber-500" />
-                                 <p className="text-xs font-medium text-amber-600">Not Connected</p>
-                              </div>
-                              <button className="text-xs font-semibold text-indigo-600 hover:text-indigo-700">
-                                 Connect
-                              </button>
-                           </div>
-                        </div>
-                     </div>
-                  )}
-
-                  <button
-                     onClick={handleLogout}
-                     className="flex items-center w-full px-4 py-3 text-sm font-medium text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+               {/* Upgrade Plan */}
+               <div className="p-3 border-t border-gray-200">
+                  <Link
+                     href="/dashboard/pricing"
+                     className={`flex items-center w-full px-3 py-3 text-sm font-medium text-[#4285F4] rounded-lg hover:bg-blue-50 transition-all ${isSidebarCollapsed ? 'justify-center' : ''
+                        }`}
                   >
-                     <LogOut className="h-5 w-5 mr-3" />
-                     Sign Out
-                  </button>
+                     <CreditCard className="h-5 w-5 shrink-0" />
+                     {!isSidebarCollapsed && <span className="ml-3 font-bold">Upgrade Plan</span>}
+                  </Link>
                </div>
             </div>
          </aside>
 
+         {/* Mobile Overlay */}
+         {isSidebarOpen && (
+            <div
+               className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+               onClick={() => setSidebarOpen(false)}
+            />
+         )}
+
          {/* Main Content */}
-         <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
-            {/* Top Header Mobile */}
-            <header className="h-16 lg:hidden bg-white border-b border-gray-200 flex items-center px-4">
+         <div className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'
+            }`}>
+            {/* Mobile Header */}
+            <header className="h-16 lg:hidden bg-white border-b border-gray-200 flex items-center px-4 sticky top-0 z-30">
                <button
                   onClick={() => setSidebarOpen(true)}
                   className="p-2 rounded-md text-gray-500 hover:bg-gray-100"

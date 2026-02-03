@@ -19,6 +19,7 @@ dist/
 # Environment Variables
 .env
 .env.local
+.env.local.bak
 .env.development.local
 .env.test.local
 .env.production.local
@@ -27,6 +28,9 @@ dist/
 # AWS
 aws-exports.js
 aws_credentials
+
+# Google OAuth
+client_secret*.json
 
 # Misc
 .DS_Store
@@ -40,4 +44,5 @@ Thumbs.db
 node_modules
 
 # Kiro IDE
-.kiro/
+docs/
+

@@ -88,7 +88,7 @@ Write-Host "   NEXT_PUBLIC_COGNITO_USER_POOL_ID=eu-north-1_RfO53Cz5t"
 Write-Host "   NEXT_PUBLIC_COGNITO_CLIENT_ID=7g6sqvvnqsg628napds0k73190"
 Write-Host "   NEXT_PUBLIC_COGNITO_DOMAIN=webdpro-auth-prod-2026"
 Write-Host "   NEXT_PUBLIC_COGNITO_REGION=eu-north-1"
-Write-Host "   NEXT_PUBLIC_RAZORPAY_KEY_ID=rzp_live_A9O3Qt84a8YKnc"
+Write-Host "   NEXT_PUBLIC_RAZORPAY_KEY_ID=<your-razorpay-key-id>"
 Write-Host "   ----------------------------------------" -ForegroundColor Gray
 Write-Host ""
 

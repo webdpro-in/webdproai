@@ -3,14 +3,17 @@
       "target": "ES2022",
       "module": "commonjs",
       "lib": [
-         "es2022"
+         "es2022",
+         "dom"
       ],
       "strict": true,
       "preserveConstEnums": true,
       "outDir": "dist",
       "sourceMap": true,
       "esModuleInterop": true,
-      "types": []
+      "types": [
+         "node"
+      ]
    },
    "include": [
       "src/**/*"

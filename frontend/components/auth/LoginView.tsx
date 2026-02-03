@@ -61,9 +61,9 @@ export default function LoginView() {
          
          // Redirect based on user role
          if (res.user.role === "BUSINESS_OWNER") {
-            router.push("/dashboard/business");
+            router.push("/dashboard/sites");
          } else {
-            router.push("/dashboard");
+            router.push("/dashboard/sites");
          }
       } else {
          setError(res.message || "Invalid OTP");
@@ -75,7 +75,7 @@ export default function LoginView() {
       setLoading(true);
       setError("");
 
-      const res = await registerUser(phone, name);
+      const res = await registerUser(phone);
       setLoading(false);
 
       if (res.success) {

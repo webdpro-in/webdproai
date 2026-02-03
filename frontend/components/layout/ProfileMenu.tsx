@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { LogOut, User, Building2, CreditCard, ChevronDown, CheckCircle2, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { logout, getUser } from "@/lib/auth";
 
 interface UserProfile {
    name: string;
@@ -30,11 +31,8 @@ export function ProfileMenu() {
    }, []);
 
    const handleLogout = () => {
-      localStorage.removeItem("token");
-      localStorage.removeItem("refresh_token");
-      localStorage.removeItem("user");
-      router.push("/login");
-      router.refresh(); // Force refresh to update Navbar state
+      // Use the centralized logout function that clears all session data
+      logout();
    };
 
    if (!user) return null;

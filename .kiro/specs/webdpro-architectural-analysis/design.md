@@ -89,7 +89,9 @@ WebDPro AI is an AI-powered e-commerce platform that generates complete online s
 - Database: DynamoDB
 - Authentication: AWS Cognito
 
-**Lambda Functions** (19 total):
+**Lambda Functions** (46 total across all services):
+
+**Backend Service** (19 functions, Runtime: Node.js 20.x):
 1. **Authentication**:
    - requestOTP: Send OTP to phone number
    - verifyOTP: Verify OTP and issue JWT
@@ -98,6 +100,62 @@ WebDPro AI is an AI-powered e-commerce platform that generates complete online s
    - createAuthChallenge: Cognito custom auth
    - defineAuthChallenge: Define auth flow
    - verifyAuthChallengeResponse: Verify custom auth
+
+2. **Store Management**:
+   - generateStore: Initiate AI store generation
+   - getStores: List user's stores
+   - getStore: Get store details
+   - updateStore: Update store configuration
+   - publishStore: Publish store to production
+   - regenerateStore: Regenerate store with new prompt
+
+3. **Order Management**:
+   - createOrder: Create new order
+   - getOrder: Get order details
+   - getStoreOrders: List store orders
+   - updateOrderStatus: Update order status
+
+4. **Domain Management**:
+   - connectDomain: Connect custom domain
+   - getDomainStatus: Check domain status
+   - verifyDomain: Verify domain ownership
+
+5. **Health Check**:
+   - ping: Service health check
+
+**AI Services** (5 functions, Runtime: Node.js 20.x):
+- generateWebsite: Complete website generation pipeline
+- generateCode: Generate React/Tailwind code
+- generateImages: Generate AI images
+- generateSpec: Generate business specification
+- ping: Service health check
+
+**Inventory Service** (8 functions, Runtime: Node.js 18.x):
+- createProduct: Add new product
+- updateProduct: Update product details
+- deleteProduct: Remove product
+- getProducts: List products
+- updateStock: Update stock levels
+- getLowStock: Get low-stock alerts
+- predictStock: AI-powered demand forecasting
+- handleEvents: Process inventory events
+
+**Payments Service** (6 functions, Runtime: Node.js 18.x):
+- createMerchantAccount: Onboard merchant
+- createSubscription: Create subscription
+- createStoreOrder: Process store order payment
+- handleWebhook: Process payment webhooks
+- handleSubscriptionWebhook: Process subscription webhooks
+- ping: Service health check (implied)
+
+**Delivery Service** (8 functions, Runtime: Node.js 20.x):
+- assignOrder: Assign order to delivery agent
+- getTracking: Get delivery tracking info
+- updateStatus: Update delivery status
+- getAssignments: Get agent's assignments
+- recordCashCollection: Record COD collection
+- getCashSummary: Get daily cash summary
+- ping: Service health check
 
 2. **Store Management**:
    - generateStore: Initiate AI store generation

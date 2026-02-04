@@ -62,21 +62,27 @@ WebDPro AI is a prompt-to-ecommerce SaaS platform that uses AWS Bedrock AI to ge
   - Merchant onboarding
 
 #### 2.1.4 Data Layer
-- **DynamoDB Tables** (7 tables)
-  - webdpro-users
-  - webdpro-tenants
-  - webdpro-stores
-  - webdpro-products
-  - webdpro-orders
-  - webdpro-deliveries
-  - webdpro-payments
-- **S3 Buckets**
-  - webdpro-ai-storage (generated websites)
-  - webdpro-assets (images and static files)
-  - webdpro-backups (disaster recovery)
+- **DynamoDB Tables** (7 tables, Region: eu-north-1)
+  - webdpro-delivery (Partition Key: delivery_id)
+  - webdpro-orders (Partition Key: order_id)
+  - webdpro-payments (Partition Key: payment_id)
+  - webdpro-products (Partition Key: store_id, Sort Key: product_id)
+  - webdpro-stores (Partition Key: tenant_id, Sort Key: store_id)
+  - webdpro-tenants (Partition Key: tenant_id)
+  - webdpro-users (Partition Key: phone)
+- **S3 Buckets** (8 buckets, Region: eu-north-1)
+  - Core Services:
+    - webdpro-ai-services-dev (AI service APIs)
+    - webdpro-backend-dev (Core backend APIs)
+    - webdpro-inventory-dev (Inventory service)
+    - webdpro-payments-dev (Payments service)
+    - webdpro-delivery-dev (Delivery & logistics)
+    - webdpro-websites-dev (Website generation & hosting)
+  - Storage & Assets:
+    - webdpro-ai-storage-dev (AI models, temp files, outputs)
+    - webdpro-assets-dev (Static assets, images, generated sites)
 - **CloudFront Distribution**
   - Global CDN for generated websites
-  - Distribution ID: d3qhkomcxcxmtl
 
 #### 2.1.5 External Integrations
 - **AWS Bedrock** (us-east-1)

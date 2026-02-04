@@ -46,3 +46,12 @@ node_modules
 # Kiro IDE
 docs/
 
+# Deployment outputs
+*deploy*.log
+*deploy*.txt
+deploy_output.txt
+info.txt
+outputs.json
+tatus
+aws-diagnostic-report.json
+
